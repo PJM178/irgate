@@ -1,0 +1,21 @@
+[package]
+name = "face-auth-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tract-onnx = { workspace = true }
+tract-core = { version = "0.21", package = "tract-core" }
+image = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+config = { workspace = true }
+dirs = { workspace = true }
+byteorder = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+nix = { version = "0.28", features = ["fs"] }
+libc = "0.2"

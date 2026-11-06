@@ -1,0 +1,26 @@
+# Build artifacts
+target/
+
+# Dependencies
+.cargo/
+.rustup/
+
+# Model file (downloaded by deploy.sh)
+models/
+
+# User dotfiles (happen to be in project root)
+.bash_logout
+.bash_profile
+.bashrc
+.profile
+
+# Cache
+.cache/
+.local/
+
+# Editor temp files
+.DS_Store
+*.swp
+*.swo
+*~
+.bash_history
