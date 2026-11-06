@@ -16,6 +16,18 @@ Changes since the fork from authFace at `96a2fda`.
 - `FaceAuth::authenticate_scan` returns a `ScanOutcome` instead of a `bool`,
   and `verify::best_similarity` exposes the score itself.
 
+### Fixed
+
+- **Face detector input was normalised to 0..1 instead of the model's
+  (pixel - 127) / 128.** It still found faces, but on the reference camera the
+  same frames scored 0.74-0.96 instead of 1.00, halving the margin above the
+  0.5 detection threshold for nothing.
+
+### Changed
+
+- Release builds are stripped and built with fat LTO and a single codegen
+  unit. The static `face-auth` binary drops from 26.7 MB to well under 20 MB.
+
 ## [Unreleased]
 
 Merges the improvements from the `SamVivan1/authFace` fork and follows them

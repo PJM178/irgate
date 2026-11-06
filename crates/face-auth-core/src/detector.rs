@@ -159,12 +159,17 @@ fn preprocess_for_detector(frame: &IrFrame) -> anyhow::Result<tract_ndarray::Arr
     let mut array =
         tract_ndarray::Array3::<f32>::zeros((3, DETECTOR_HEIGHT, DETECTOR_WIDTH));
 
+    // Normalise the way the model was trained: (pixel - 127) / 128, per the
+    // upstream reference script (run_video_face_detect_onnx.py). Feeding it
+    // 0..1 instead still detected faces on the reference camera, but with
+    // scores of 0.74-0.96 where the correct input scores 1.00 on the same
+    // frames — half the margin above the 0.5 threshold, for no reason.
     for y in 0..DETECTOR_HEIGHT {
         for x in 0..DETECTOR_WIDTH {
             let pixel = rgb.get_pixel(x as u32, y as u32);
-            array[[0, y, x]] = pixel.0[0] as f32 / 255.0;
-            array[[1, y, x]] = pixel.0[1] as f32 / 255.0;
-            array[[2, y, x]] = pixel.0[2] as f32 / 255.0;
+            array[[0, y, x]] = (pixel.0[0] as f32 - 127.0) / 128.0;
+            array[[1, y, x]] = (pixel.0[1] as f32 - 127.0) / 128.0;
+            array[[2, y, x]] = (pixel.0[2] as f32 - 127.0) / 128.0;
         }
     }
 

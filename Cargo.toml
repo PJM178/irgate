@@ -18,3 +18,11 @@ clap = { version = "4.5", features = ["derive", "env"] }
 byteorder = "1.5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# face-auth runs once per unlock as a short-lived process, so startup size
+# matters more than compile time: strip symbols, let LTO fold the tract
+# graph machinery down, and give the optimiser the whole crate at once.
+[profile.release]
+strip = true
+lto = "fat"
+codegen-units = 1
