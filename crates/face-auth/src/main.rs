@@ -5,7 +5,7 @@
 //! reads from its environment is attacker-influenced except `PAM_USER`, which
 //! `pam_exec` sets from the PAM handle itself.
 
-use face_auth_core::{user, FaceAuth, FaceAuthConfig};
+use face_auth_core::{user, FaceAuth, FaceAuthConfig, ScanOutcome};
 use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -13,6 +13,47 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 use std::time::Instant;
 use tracing_subscriber::{fmt, EnvFilter};
+
+/// Authentication outcomes go to the system journal, not to stderr.
+///
+/// `pam_exec` relays this process's stderr to whatever started the PAM
+/// conversation — the user's terminal under `sudo` — so stderr is kept quiet
+/// by default and is no use for audit anyway. syslog(3) lands in journald on
+/// every systemd distro (`journalctl -t face-auth`) and under `/dev/log`
+/// elsewhere, and works from a static musl binary without linking libsystemd.
+/// Facility AUTHPRIV, the same as the rest of the PAM stack.
+mod journal {
+    use std::ffi::{CStr, CString};
+
+    const IDENT: &CStr = c"face-auth";
+
+    pub fn open() {
+        // IDENT is 'static: openlog keeps the pointer rather than copying.
+        unsafe { libc::openlog(IDENT.as_ptr(), libc::LOG_PID, libc::LOG_AUTHPRIV) };
+    }
+
+    pub fn log(priority: libc::c_int, msg: &str) {
+        // A NUL would truncate the message inside C; drop them rather than
+        // fail to log at all.
+        let Ok(msg) = CString::new(msg.replace('\0', " ")) else {
+            return;
+        };
+        // "%s" so nothing in the message is ever read as a format directive.
+        unsafe { libc::syslog(priority, c"%s".as_ptr(), msg.as_ptr()) };
+    }
+
+    pub fn info(msg: &str) {
+        log(libc::LOG_INFO, msg);
+    }
+
+    pub fn warning(msg: &str) {
+        log(libc::LOG_WARNING, msg);
+    }
+
+    pub fn error(msg: &str) {
+        log(libc::LOG_ERR, msg);
+    }
+}
 
 /// Status values consumed by the GNOME Shell scan indicator.
 const STATUS_SCANNING: &str = "scanning";
@@ -73,20 +114,25 @@ fn reject_remote_session() -> Result<(), String> {
     }
 }
 
-/// A routine authentication outcome: no match, or a session this tool declines
-/// to handle. Logged below the default level, because `pam_exec` relays our
-/// stderr to the terminal and this would otherwise print on every failed sudo.
-fn fail_auth(msg: &str) -> ! {
-    tracing::info!("{msg}");
-    std::process::exit(1)
-}
-
 /// A misconfiguration: PAM did not supply a user, the config is broken, a model
 /// is missing, the camera is unusable. These are rare, actionable, and useless
 /// if silent — an admin has to be able to see them without setting RUST_LOG.
 fn fail_setup(msg: &str) -> ! {
+    journal::error(msg);
     tracing::error!("{msg}");
     std::process::exit(1)
+}
+
+/// Record a completed scan, matched or not, with the numbers needed to act on
+/// it: the best score seen against the threshold, how many frames carried a
+/// face, and why frames were rejected if none did.
+fn journal_outcome(user: &str, outcome: &ScanOutcome) {
+    let summary = outcome.summary();
+    if outcome.matched {
+        journal::info(&format!("face recognised for '{user}': {summary}"));
+    } else {
+        journal::info(&format!("face not recognised for '{user}': {summary}"));
+    }
 }
 
 /// Interactive verification against a stored template. Prints a human-readable
@@ -120,15 +166,13 @@ fn run_verify(name: &str) -> ! {
         }
     };
     match auth.authenticate_scan(&info.name, window, interval) {
-        Ok(true) => {
-            println!("match");
-            std::process::exit(0);
-        }
-        Ok(false) => {
-            println!("no match");
-            std::process::exit(1);
+        Ok(outcome) => {
+            journal_outcome(&info.name, &outcome);
+            println!("{}", outcome.summary());
+            std::process::exit(if outcome.matched { 0 } else { 1 });
         }
         Err(e) => {
+            journal::error(&format!("verification error for '{}': {e}", info.name));
             eprintln!("{e}");
             std::process::exit(2);
         }
@@ -143,6 +187,7 @@ fn main() {
         .with_writer(std::io::stderr)
         .init();
 
+    journal::open();
     let t0 = Instant::now();
 
     // `--verify <user>` is the settings GUI's "Test Authentication" path. It
@@ -177,7 +222,9 @@ fn main() {
     };
 
     if let Err(reason) = reject_remote_session() {
-        fail_auth(&format!("refusing face authentication for {reason}"));
+        journal::warning(&format!("refusing face authentication for '{}': {reason}", info.name));
+        tracing::info!("refusing face authentication for {reason}");
+        std::process::exit(1);
     }
 
     // System config only, plus a strictly-narrowing overlay from the user.
@@ -208,13 +255,15 @@ fn main() {
     tracing::debug!(total = ?t0.elapsed(), "scan finished");
 
     match result {
-        Ok(true) => {
-            write_status(&info, STATUS_OK);
-            std::process::exit(0);
-        }
-        Ok(false) => {
+        Ok(outcome) => {
+            journal_outcome(&info.name, &outcome);
+            if outcome.matched {
+                write_status(&info, STATUS_OK);
+                std::process::exit(0);
+            }
             write_status(&info, STATUS_FAIL);
-            fail_auth(&format!("face not recognised for '{}'", info.name));
+            tracing::info!("face not recognised for '{}': {}", info.name, outcome.summary());
+            std::process::exit(1);
         }
         Err(e) => {
             write_status(&info, STATUS_FAIL);

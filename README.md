@@ -462,7 +462,11 @@ sudo usermod -aG video $USER
 # Debug output from a live sudo attempt
 sudo -k; RUST_LOG=face_auth_core=debug,face_auth=debug sudo true
 
-# Check PAM logs
+# Every scan leaves one line here: match / no match, best similarity vs
+# threshold, frames with a face, and why frames were rejected if none had one
+journalctl -t face-auth
+
+# pam_exec's own view
 journalctl | grep -i "pam_exec\|face-auth"
 
 # SELinux denials

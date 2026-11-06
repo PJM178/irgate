@@ -1,5 +1,21 @@
 # Changelog
 
+## irauth
+
+Changes since the fork from authFace at `96a2fda`.
+
+### Added
+
+- **Scan outcomes are recorded in the system journal.** Every run of
+  `face-auth` now logs one line via syslog(3) under the `face-auth` identifier
+  (facility AUTHPRIV): match or no match, the best similarity seen against the
+  threshold, how many frames carried a face, and why frames were rejected if
+  none did. Previously a failed unlock left nothing but `pam_exec`'s exit code,
+  so a covered lens, a mis-set threshold and a camera fault were
+  indistinguishable. See it with `journalctl -t face-auth`.
+- `FaceAuth::authenticate_scan` returns a `ScanOutcome` instead of a `bool`,
+  and `verify::best_similarity` exposes the score itself.
+
 ## [Unreleased]
 
 Merges the improvements from the `SamVivan1/authFace` fork and follows them

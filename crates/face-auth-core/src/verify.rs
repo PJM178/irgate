@@ -1,19 +1,14 @@
 use crate::error::FaceAuthError;
 use crate::storage::EmbeddingStore;
 
-pub fn verify_embedding(
-    probe: &[f32],
-    store: &EmbeddingStore,
-    threshold: f32,
-) -> anyhow::Result<bool> {
+/// Highest cosine similarity between `probe` and any stored embedding.
+///
+/// This is what gets logged: a bare pass/fail says nothing about *how* close
+/// a rejected scan came, which is the one number an admin needs to tell a
+/// mis-set threshold from a camera that never saw a face.
+pub fn best_similarity(probe: &[f32], store: &EmbeddingStore) -> anyhow::Result<f32> {
     if store.embeddings.is_empty() {
         return Err(FaceAuthError::NoEmbeddings.into());
-    }
-
-    // A threshold of zero or below matches anything. Config validation should
-    // already have caught it; refuse rather than authenticate if it has not.
-    if !threshold.is_finite() || threshold <= 0.0 {
-        anyhow::bail!("refusing to verify against non-positive threshold {threshold}");
     }
 
     // A non-finite probe makes every comparison NaN, which compares false and
@@ -36,6 +31,23 @@ pub fn verify_embedding(
             max_similarity = similarity;
         }
     }
+
+    Ok(max_similarity)
+}
+
+/// Does `probe` match any stored embedding at `threshold`?
+pub fn verify_embedding(
+    probe: &[f32],
+    store: &EmbeddingStore,
+    threshold: f32,
+) -> anyhow::Result<bool> {
+    // A threshold of zero or below matches anything. Config validation should
+    // already have caught it; refuse rather than authenticate if it has not.
+    if !threshold.is_finite() || threshold <= 0.0 {
+        anyhow::bail!("refusing to verify against non-positive threshold {threshold}");
+    }
+
+    let max_similarity = best_similarity(probe, store)?;
 
     tracing::debug!(
         similarity = max_similarity,
@@ -127,6 +139,14 @@ mod tests {
         let probe = vec![f32::NAN, 0.0, 0.0];
         let store = store_of(vec![vec![1.0, 0.0, 0.0]]);
         assert!(verify_embedding(&probe, &store, 0.6).is_err());
+    }
+
+    #[test]
+    fn best_similarity_reports_the_closest_template() {
+        let probe = vec![1.0, 0.0, 0.0];
+        let store = store_of(vec![vec![0.0, 1.0, 0.0], vec![0.6, 0.8, 0.0], vec![-1.0, 0.0, 0.0]]);
+        let best = best_similarity(&probe, &store).unwrap();
+        assert!((best - 0.6).abs() < 1e-6, "got {best}");
     }
 
     #[test]

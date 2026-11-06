@@ -14,7 +14,7 @@ use crate::detector::{assess_frame, FaceDetector, FrameQuality};
 use crate::error::FaceAuthError;
 use crate::inference::FaceEncoder;
 use crate::storage::EmbeddingStore;
-use crate::verify::verify_embedding;
+use crate::verify::{best_similarity, verify_embedding};
 use anyhow::Result;
 use std::time::{Duration, Instant};
 
@@ -31,6 +31,52 @@ pub enum EnrollProgress {
     NoContent,
     NoFace,
     Captured { captured: usize, wanted: usize },
+}
+
+/// What a scan window produced. Returned rather than a bare `bool` so the
+/// caller can log *why*: "no face passed the quality gate" and "a face scored
+/// 0.55 against a 0.60 threshold" need very different fixes, and neither is
+/// visible from an exit status.
+#[derive(Debug, Clone)]
+pub struct ScanOutcome {
+    pub matched: bool,
+    /// Highest similarity over every frame that reached the encoder; `None`
+    /// if no frame did.
+    pub best_similarity: Option<f32>,
+    pub threshold: f32,
+    /// Frames captured during the window.
+    pub frames: usize,
+    /// Frames in which a face was found and encoded.
+    pub faces: usize,
+    /// Why the most recent unusable frame was rejected before detection.
+    pub last_reject: Option<FrameQuality>,
+    pub elapsed: Duration,
+}
+
+impl ScanOutcome {
+    /// One-line summary for logs: outcome, score, and what the scan saw.
+    pub fn summary(&self) -> String {
+        let score = match self.best_similarity {
+            Some(s) => format!("{s:.3}"),
+            None => "none".to_string(),
+        };
+        let mut s = format!(
+            "{} similarity={score} threshold={:.2} frames={} faces={} elapsed={}ms",
+            if self.matched { "match" } else { "no match" },
+            self.threshold,
+            self.frames,
+            self.faces,
+            self.elapsed.as_millis()
+        );
+        if self.faces == 0 {
+            match &self.last_reject {
+                Some(q) => s.push_str(&format!(" last_reject=\"{q}\"")),
+                None if self.frames > 0 => s.push_str(" (frames passed quality checks but no face was detected)"),
+                None => {}
+            }
+        }
+        s
+    }
 }
 
 pub struct FaceAuth {
@@ -91,8 +137,13 @@ impl FaceAuth {
         user: &str,
         duration_ms: u64,
         interval_ms: u64,
-    ) -> Result<bool> {
+    ) -> Result<ScanOutcome> {
         let t0 = Instant::now();
+        let threshold = self.config.threshold();
+        anyhow::ensure!(
+            threshold.is_finite() && threshold > 0.0,
+            "refusing to scan against non-positive threshold {threshold}"
+        );
         let store = EmbeddingStore::load(user, &self.config.embeddings_dir())?;
         tracing::debug!(elapsed = ?t0.elapsed(), "store loaded");
 
@@ -101,6 +152,8 @@ impl FaceAuth {
 
         let deadline = Instant::now() + Duration::from_millis(duration_ms);
         let mut frame_num: usize = 0;
+        let mut faces: usize = 0;
+        let mut best: Option<f32> = None;
         let mut consecutive_errors = 0u32;
         let mut last_reject: Option<FrameQuality> = None;
 
@@ -124,7 +177,15 @@ impl FaceAuth {
                     ),
                     None => tracing::debug!(frames = frame_num, "scan window elapsed without a match"),
                 }
-                return Ok(false);
+                return Ok(ScanOutcome {
+                    matched: false,
+                    best_similarity: best,
+                    threshold,
+                    frames: frame_num,
+                    faces,
+                    last_reject,
+                    elapsed: t0.elapsed(),
+                });
             }
 
             frame_num += 1;
@@ -162,10 +223,25 @@ impl FaceAuth {
 
             let input = crate::preprocess::preprocess_ir_frame(&frame)?;
             let embedding = self.encoder.encode(input.view())?;
+            faces += 1;
 
-            if verify_embedding(&embedding, &store, self.config.threshold())? {
+            let similarity = best_similarity(&embedding, &store)?;
+            tracing::debug!(frame = frame_num, similarity, threshold, "frame scored");
+            if best.map_or(true, |b| similarity > b) {
+                best = Some(similarity);
+            }
+
+            if similarity >= threshold {
                 tracing::debug!(frame = frame_num, elapsed = ?t0.elapsed(), "match");
-                return Ok(true);
+                return Ok(ScanOutcome {
+                    matched: true,
+                    best_similarity: best,
+                    threshold,
+                    frames: frame_num,
+                    faces,
+                    last_reject,
+                    elapsed: t0.elapsed(),
+                });
             }
 
             nap(deadline);
