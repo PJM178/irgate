@@ -142,7 +142,7 @@ impl FaceAuth {
 
         let t1 = Instant::now();
         let frame = crate::capture::capture_ir_frame(
-            &self.config.device(),
+            &self.config.device()?,
             self.config.capture_timeout_ms(),
         )?;
         tracing::debug!(elapsed = ?t1.elapsed(), "frame captured");
@@ -180,7 +180,7 @@ impl FaceAuth {
         let store = EmbeddingStore::load(user, &self.config.embeddings_dir())?;
         tracing::debug!(elapsed = ?t0.elapsed(), "store loaded");
 
-        let mut cam = Camera::open(&self.config.device())?;
+        let mut cam = Camera::open(&self.config.device()?)?;
         tracing::debug!(elapsed = ?t0.elapsed(), "camera open");
 
         let deadline = Instant::now() + Duration::from_millis(duration_ms);
@@ -374,7 +374,7 @@ impl FaceAuth {
         progress: ProgressFn<'_>,
     ) -> Result<usize> {
         let mut store = EmbeddingStore::default();
-        let mut cam = Camera::open(&self.config.device())?;
+        let mut cam = Camera::open(&self.config.device()?)?;
         self.capture_embeddings(&mut cam, &mut store, frames, interval_ms, progress)?;
 
         let saved = store.embeddings.len();
@@ -403,7 +403,7 @@ impl FaceAuth {
         };
 
         let existing = store.embeddings.len();
-        let mut cam = Camera::open(&self.config.device())?;
+        let mut cam = Camera::open(&self.config.device()?)?;
         self.capture_embeddings(&mut cam, &mut store, frames, interval_ms, progress)?;
 
         let total = store.embeddings.len();

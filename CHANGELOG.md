@@ -57,6 +57,17 @@ Changes since the fork from authFace at `96a2fda`.
 
 ### Fixed
 
+- **Camera auto-detection found nothing on the reference laptop and fell
+  back to the RGB webcam.** It required the sysfs card name to contain the
+  word "IR", but the kernel truncates card names to 31 characters and the
+  ASUS sensor reports "USB2.0 FHD UVC WebCam: USB2.0 I". Detection now takes
+  any `/dev/video*` node that opens as a raw GREY capture device (what IR
+  sensors expose and RGB webcams do not), preferring IR-named ones. When no
+  camera is found, `face-auth` and `face-enroll` now say so and point at
+  `device` in `/etc/face-auth.toml` instead of silently trying `/dev/video0`
+  and failing with "reports pixel format 'MJPG'". The same rule applies to a
+  user's `device` override. `cargo run --example detect-camera` lists every
+  node with the reason it was or was not accepted.
 - **Face detector input was normalised to 0..1 instead of the model's
   (pixel - 127) / 128.** It still found faces, but on the reference camera the
   same frames scored 0.74-0.96 instead of 1.00, halving the margin above the

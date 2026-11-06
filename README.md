@@ -515,9 +515,16 @@ invoking it by hand, use `--verify` rather than setting `PAM_USER` yourself.
 
 ### "reports pixel format ... requires raw 8-bit GREY"
 
-The selected device is not an IR sensor — it is an ordinary RGB webcam, or the
-metadata node that sits next to the real capture node. Let auto-detection pick
-one, or check `v4l2-ctl --device /dev/videoN --list-formats`.
+The configured device is not an IR sensor — it is an ordinary RGB webcam, or the
+metadata node that sits next to the real capture node. Unset `device` to let
+auto-detection pick one, or check `v4l2-ctl --device /dev/videoN --list-formats`.
+
+### "no IR camera found"
+
+No `/dev/video*` node opened as a raw GREY capture device. Run
+`cargo run --example detect-camera` to see each node and why it was rejected.
+The sysfs name is informational only: the kernel truncates it to 31 characters,
+so an IR sensor may be listed as "... USB2.0 I" with the "R" cut off.
 
 ### Preview flickers, or "no face detected" every time
 

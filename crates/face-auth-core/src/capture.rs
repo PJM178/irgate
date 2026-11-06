@@ -382,43 +382,69 @@ pub fn name_suggests_ir(name: &str) -> bool {
         .any(|word| word == "ir" || word == "infrared")
 }
 
-/// Enumerate IR capture devices, best candidate first.
-///
-/// UVC cameras commonly expose several `/dev/videoN` nodes under one name —
-/// typically a capture node followed by a metadata node that accepts no
-/// frames. Each candidate is opened to confirm it really is a GREY capture
-/// device before being offered.
-pub fn enumerate_ir_cameras() -> Vec<(String, String)> {
+/// One V4L2 node and what was learned about it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VideoNode {
+    pub path: String,
+    /// Card name from sysfs. The kernel truncates this to 31 characters, so
+    /// an "IR" suffix is often cut off: the reference ASUS sensor reports
+    /// "USB2.0 FHD UVC WebCam: USB2.0 I".
+    pub name: String,
+    pub ir_name: bool,
+    /// `Ok(())` if the node opened as a GREY capture device, else why not.
+    pub grey_capture: Result<(), String>,
+}
+
+/// Every `/dev/videoN` node, in numeric order, with its sysfs name and
+/// whether it opens as a GREY capture device.
+pub fn list_video_nodes() -> Vec<VideoNode> {
     let base = std::path::Path::new("/sys/class/video4linux");
-    let mut candidates: Vec<(String, String)> = Vec::new();
+    let mut nodes: Vec<VideoNode> = Vec::new();
     if let Ok(entries) = std::fs::read_dir(base) {
         for entry in entries.flatten() {
-            let Ok(name) = std::fs::read_to_string(entry.path().join("name")) else {
-                continue;
-            };
-            let name = name.trim().to_string();
-            if !name_suggests_ir(&name) {
-                continue;
-            }
             let Some(device_name) = entry.file_name().to_str().map(str::to_owned) else {
                 continue;
             };
-            candidates.push((format!("/dev/{}", device_name), name));
+            let name = std::fs::read_to_string(entry.path().join("name"))
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            let path = format!("/dev/{device_name}");
+            let grey_capture = Camera::open(&path).map(|_| ()).map_err(|e| e.to_string());
+            nodes.push(VideoNode { ir_name: name_suggests_ir(&name), path, name, grey_capture });
         }
     }
     // Sort numerically: /dev/video9 must order before /dev/video10.
-    candidates.sort_by_key(|(path, _)| {
+    nodes.sort_by_key(|n| {
         (
-            path.trim_start_matches("/dev/video")
-                .parse::<u32>()
-                .unwrap_or(u32::MAX),
-            path.clone(),
+            n.path.trim_start_matches("/dev/video").parse::<u32>().unwrap_or(u32::MAX),
+            n.path.clone(),
         )
     });
-    candidates
+    nodes
+}
+
+/// Enumerate IR capture devices, best candidate first, as `(path, name)`.
+///
+/// A node qualifies if it opens as a raw 8-bit GREY capture device; that is
+/// what Windows Hello IR sensors expose and what RGB webcams (YUYV, MJPG) do
+/// not. Nodes whose sysfs name also says IR are preferred, but the name is
+/// not required: the kernel truncates card names to 31 characters and on the
+/// reference ASUS laptop the IR sensor's name ends in "USB2.0 I", so a
+/// name-only rule found nothing and authentication fell back to the RGB
+/// webcam.
+///
+/// UVC cameras commonly expose several nodes under one name — typically a
+/// capture node followed by a metadata node that accepts no frames — which
+/// is why each candidate is opened rather than trusted.
+pub fn enumerate_ir_cameras() -> Vec<(String, String)> {
+    let mut nodes: Vec<VideoNode> = list_video_nodes()
         .into_iter()
-        .filter(|(path, _)| Camera::open(path).is_ok())
-        .collect()
+        .filter(|n| n.grey_capture.is_ok())
+        .collect();
+    // Stable sort: IR-named first, numeric order preserved within each group.
+    nodes.sort_by_key(|n| !n.ir_name);
+    nodes.into_iter().map(|n| (n.path, n.name)).collect()
 }
 
 pub fn detect_ir_camera() -> Option<String> {
@@ -431,10 +457,13 @@ pub fn detect_ir_camera() -> Option<String> {
 /// Is `path` a real IR capture device on this machine?
 ///
 /// Lets an unprivileged setting name *which* IR sensor to use without letting
-/// it name an arbitrary video source: the device must live under `/dev`, carry
-/// an IR-looking name in sysfs, and open as a GREY capture node. Selecting
-/// among the sensors physically present is a preference; pointing the
-/// authentication camera at some other stream is not.
+/// it name an arbitrary video source: the device must be a `/dev/videoN` node
+/// registered under `/sys/class/video4linux` and open as a GREY capture
+/// device. An ordinary RGB webcam fails the format check. The sysfs name is
+/// not consulted, because the kernel truncates it and the reference sensor's
+/// "IR" is cut off; selecting among the GREY sensors physically present is a
+/// preference, and there is nothing else a GREY node could be short of a
+/// loopback device that only root can create.
 pub fn is_ir_capture_device(path: &str) -> bool {
     let Some(node) = path.strip_prefix("/dev/") else {
         return false;
@@ -442,14 +471,7 @@ pub fn is_ir_capture_device(path: &str) -> bool {
     if node.is_empty() || node.contains('/') || node.contains("..") {
         return false;
     }
-
-    let name_path = std::path::Path::new("/sys/class/video4linux")
-        .join(node)
-        .join("name");
-    let Ok(name) = std::fs::read_to_string(name_path) else {
-        return false;
-    };
-    if !name_suggests_ir(name.trim()) {
+    if !std::path::Path::new("/sys/class/video4linux").join(node).join("name").exists() {
         return false;
     }
 

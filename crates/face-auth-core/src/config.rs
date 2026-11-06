@@ -208,11 +208,23 @@ impl FaceAuthConfig {
         Ok(())
     }
 
-    pub fn device(&self) -> String {
-        self.device
-            .clone()
-            .or_else(crate::capture::detect_ir_camera)
-            .unwrap_or_else(|| "/dev/video0".to_string())
+    /// The camera to use: the configured `device`, else the first node that
+    /// opens as a GREY capture device.
+    ///
+    /// Errors rather than guessing. The old fallback was `/dev/video0`, which
+    /// on most laptops is the RGB webcam, so a failed detection surfaced as a
+    /// baffling "reports pixel format 'MJPG'" from a device nobody had named.
+    pub fn device(&self) -> Result<String> {
+        if let Some(d) = &self.device {
+            return Ok(d.clone());
+        }
+        crate::capture::detect_ir_camera().ok_or_else(|| {
+            anyhow::anyhow!(
+                "no IR camera found: no /dev/video* node opens as a raw GREY capture device. \
+                 Run `cargo run --example detect-camera` to see what is present, and set \
+                 `device = \"/dev/videoN\"` in {SYSTEM_CONFIG_PATH} to pin one"
+            )
+        })
     }
 
     pub fn threshold(&self) -> f32 {

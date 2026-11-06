@@ -56,7 +56,7 @@ fn main() -> anyhow::Result<()> {
             println!("{} templates, threshold {threshold:.2}", store.embeddings.len());
             println!("{:>5} {:>5} {:>6} {:>7} {:>6}", "t", "det", "width", "sim", "");
 
-            let mut cam = Camera::open(&auth.config().device())?;
+            let mut cam = Camera::open(&auth.config().device()?)?;
             let timeout = auth.config().capture_timeout_ms();
             let t0 = Instant::now();
             let (mut frames, mut faces) = (0usize, 0usize);

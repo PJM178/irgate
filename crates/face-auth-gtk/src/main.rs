@@ -86,7 +86,7 @@ fn build_ui(app: &libadwaita::Application) {
 
     let cameras = face_auth_core::capture::enumerate_ir_cameras();
     let (camera_display, camera_paths): (Vec<String>, Vec<String>) = if cameras.is_empty() {
-        (vec!["No IR camera found".to_string()], vec![config.device()])
+        (vec!["No IR camera found".to_string()], vec![config.device().unwrap_or_default()])
     } else {
         cameras
             .iter()
@@ -95,7 +95,7 @@ fn build_ui(app: &libadwaita::Application) {
     };
     let camera_refs: Vec<&str> = camera_display.iter().map(|s| s.as_str()).collect();
     let camera_store = gtk4::StringList::new(&camera_refs);
-    let current_device = config.device();
+    let current_device = config.device().unwrap_or_default();
     let device_index = camera_paths
         .iter()
         .position(|d| *d == current_device)
@@ -226,7 +226,7 @@ fn build_ui(app: &libadwaita::Application) {
     let controller = CaptureController::new(
         &config.detector_model_path(),
         config.detector_threshold(),
-        &config.device(),
+        &config.device().unwrap_or_default(),
     );
 
     let state = Rc::new(GuiState {

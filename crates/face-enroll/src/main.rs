@@ -90,7 +90,7 @@ fn main() -> anyhow::Result<()> {
     config.validate()?;
 
     println!("Enrolling '{}'", info.name);
-    println!("  camera:     {}", config.device());
+    println!("  camera:     {}", config.device()?);
     println!("  model:      {}", config.model_path());
     println!("  templates:  {}", config.embeddings_dir().display());
     println!();
