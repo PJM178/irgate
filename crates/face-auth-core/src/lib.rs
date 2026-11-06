@@ -10,7 +10,7 @@ pub mod verify;
 
 pub use crate::capture::Camera;
 pub use crate::config::FaceAuthConfig;
-use crate::detector::{assess_frame, FaceDetector, FrameQuality};
+use crate::detector::{assess_frame, Face, FaceDetector, FrameQuality};
 use crate::error::FaceAuthError;
 use crate::inference::FaceEncoder;
 use crate::storage::EmbeddingStore;
@@ -30,8 +30,25 @@ pub enum EnrollProgress {
     Capturing { captured: usize, wanted: usize, attempt: usize },
     NoContent,
     NoFace,
+    /// The frame was fine but near-identical to one already captured this
+    /// run; the user should change pose a little.
+    TooSimilar,
     Captured { captured: usize, wanted: usize },
 }
+
+/// Frames whose embedding is at least this similar to one already captured in
+/// the same enrolment run are skipped. Five frames of one held pose are one
+/// template five times over; what makes matching tolerant of a turned head or
+/// a different distance is having *seen* those, so enrolment nudges the user
+/// to move. Consecutive still frames measure 0.98-0.99 on the reference
+/// camera; a small turn drops to the low 0.9s.
+pub const ENROLL_DUPLICATE_SIMILARITY: f32 = 0.97;
+
+/// Default number of templates an enrolment captures.
+pub const ENROLL_DEFAULT_FRAMES: usize = 8;
+/// Default pause between enrolment captures, in milliseconds. Long enough
+/// for the user to move between frames.
+pub const ENROLL_DEFAULT_INTERVAL_MS: u64 = 500;
 
 /// What a scan window produced. Returned rather than a bare `bool` so the
 /// caller can log *why*: "no face passed the quality gate" and "a face scored
@@ -97,6 +114,25 @@ impl FaceAuth {
         &self.config
     }
 
+    /// Detect the face in an equalised frame and encode it.
+    ///
+    /// `Ok(None)` means no face reached the threshold. The crop fed to the
+    /// encoder is the landmark-aligned 112x112 face, never the frame itself:
+    /// embedding the whole frame made the template describe the room, and an
+    /// empty chair scored above the match threshold.
+    pub fn probe_frame(&mut self, frame: &crate::capture::IrFrame) -> Result<Option<(Face, Vec<f32>)>> {
+        self.encode_face(frame)
+    }
+
+    fn encode_face(&mut self, frame: &crate::capture::IrFrame) -> Result<Option<(Face, Vec<f32>)>> {
+        let Some(face) = self.detector.detect(frame)? else {
+            return Ok(None);
+        };
+        let input = crate::preprocess::align_face(frame, &face.landmarks)?;
+        let embedding = self.encoder.encode(input.view())?;
+        Ok(Some((face, embedding)))
+    }
+
     /// Single-shot verification. Used by the settings GUI's test button; the
     /// PAM path uses [`FaceAuth::authenticate_scan`].
     pub fn authenticate_once(&mut self, user: &str) -> Result<bool> {
@@ -120,12 +156,9 @@ impl FaceAuth {
         let mut frame = frame;
         crate::preprocess::histogram_equalize(&mut frame);
 
-        if !self.detector.detect(&frame)? {
+        let Some((_, embedding)) = self.encode_face(&frame)? else {
             return Err(FaceAuthError::NoFaceDetected.into());
-        }
-
-        let input = crate::preprocess::preprocess_ir_frame(&frame)?;
-        let embedding = self.encoder.encode(input.view())?;
+        };
         tracing::debug!(elapsed = ?t0.elapsed(), "authenticate_once complete");
 
         verify_embedding(&embedding, &store, self.config.threshold())
@@ -216,14 +249,17 @@ impl FaceAuth {
             let mut frame = frame;
             crate::preprocess::histogram_equalize(&mut frame);
 
-            if !self.detector.detect(&frame)? {
+            let Some((face, embedding)) = self.encode_face(&frame)? else {
                 nap(deadline);
                 continue;
-            }
-
-            let input = crate::preprocess::preprocess_ir_frame(&frame)?;
-            let embedding = self.encoder.encode(input.view())?;
+            };
             faces += 1;
+            tracing::trace!(
+                frame = frame_num,
+                score = face.score,
+                width = face.width(),
+                "face detected"
+            );
 
             let similarity = best_similarity(&embedding, &store)?;
             tracing::debug!(frame = frame_num, similarity, threshold, "frame scored");
@@ -279,14 +315,25 @@ impl FaceAuth {
             let mut frame = frame;
             crate::preprocess::histogram_equalize(&mut frame);
 
-            if !self.detector.detect(&frame)? {
+            let Some((_, embedding)) = self.encode_face(&frame)? else {
                 progress(EnrollProgress::NoFace);
+                std::thread::sleep(Duration::from_millis(interval_ms));
+                continue;
+            };
+
+            // Only frames from *this* run count as duplicates: --improve is
+            // meant to add poses the existing templates lack, and a frame that
+            // resembles an old template is exactly the kind worth refreshing.
+            let duplicate = store.embeddings[before..].iter().any(|e| {
+                e.iter().zip(&embedding).map(|(a, b)| a * b).sum::<f32>()
+                    >= ENROLL_DUPLICATE_SIMILARITY
+            });
+            if duplicate {
+                progress(EnrollProgress::TooSimilar);
                 std::thread::sleep(Duration::from_millis(interval_ms));
                 continue;
             }
 
-            let input = crate::preprocess::preprocess_ir_frame(&frame)?;
-            let embedding = self.encoder.encode(input.view())?;
             store.add_embedding(embedding);
             captured += 1;
             progress(EnrollProgress::Captured { captured, wanted: frames });
@@ -372,7 +419,7 @@ mod tests {
     #[test]
     fn config_defaults_are_sane() {
         let config = FaceAuthConfig::default();
-        assert_eq!(config.threshold(), 0.6);
+        assert_eq!(config.threshold(), crate::config::DEFAULT_THRESHOLD);
         assert!(config.validate().is_ok());
     }
 }

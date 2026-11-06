@@ -6,7 +6,14 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
-const EMBEDDING_VERSION: u32 = 1;
+/// Template file format. Bumped whenever the arithmetic that produces an
+/// embedding changes, so that templates from an older pipeline are refused
+/// with a clear message rather than silently compared against incomparable
+/// vectors.
+///
+/// - 1: whole-frame embedding (authFace).
+/// - 2: landmark-aligned 112x112 face crop (irauth).
+const EMBEDDING_VERSION: u32 = 2;
 const EMBEDDING_DIM: u32 = 512;
 
 /// Upper bound on stored embeddings per user.
@@ -45,6 +52,14 @@ impl EmbeddingStore {
 
         let version = reader.read_u32::<LittleEndian>()?;
         if version != EMBEDDING_VERSION {
+            // An older, well-formed file is the common upgrade case; say so.
+            if (1..EMBEDDING_VERSION).contains(&version) {
+                return Err(FaceAuthError::OutdatedEmbeddings {
+                    found: version,
+                    expected: EMBEDDING_VERSION,
+                }
+                .into());
+            }
             return Err(FaceAuthError::InvalidEmbeddingFormat.into());
         }
 
@@ -253,6 +268,27 @@ mod tests {
         fs::write(&path, data).unwrap();
 
         assert!(EmbeddingStore::load("alice", &dir).is_err());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn older_format_is_reported_as_outdated_not_corrupt() {
+        let dir = tmpdir("outdated");
+        fs::create_dir_all(dir.join("alice")).unwrap();
+        let mut buf = Vec::new();
+        buf.write_u32::<LittleEndian>(1).unwrap();
+        buf.write_u32::<LittleEndian>(1).unwrap();
+        buf.write_u32::<LittleEndian>(EMBEDDING_DIM).unwrap();
+        for _ in 0..EMBEDDING_DIM {
+            buf.write_f32::<LittleEndian>(0.1).unwrap();
+        }
+        fs::write(dir.join("alice/embeddings.bin"), &buf).unwrap();
+
+        let err = EmbeddingStore::load("alice", &dir).unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<FaceAuthError>(),
+            Some(FaceAuthError::OutdatedEmbeddings { found: 1, .. })
+        ), "{err}");
         fs::remove_dir_all(&dir).unwrap();
     }
 

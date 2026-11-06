@@ -16,6 +16,45 @@ Changes since the fork from authFace at `96a2fda`.
 - `FaceAuth::authenticate_scan` returns a `ScanOutcome` instead of a `bool`,
   and `verify::best_similarity` exposes the score itself.
 
+### Security
+
+- **The recogniser was matching the room, not the face.** The detector's
+  bounding boxes were discarded and the encoder was fed the whole 640x400
+  frame squashed to 112x112. Measured on the reference machine, an empty chair
+  scored 0.65-0.77 against the enrolled template, above the 0.60 threshold;
+  the only face-specific check left in the login path was the detector's
+  "is any face present", so another person in the same chair would very
+  likely have unlocked the session. The pipeline now detects the face with
+  InsightFace's SCRFD (`det_500m.onnx`, from the same `buffalo_sc` pack as
+  the recogniser, which `deploy.sh` had been downloading and discarding),
+  warps it onto the ArcFace five-landmark layout, and encodes only that. With
+  nobody in view there are no landmarks and nothing is scored. Same-user
+  similarity across posture changes rose to 0.60-0.95 (mean 0.84) from
+  0.66-0.81, and detection got faster (10 ms vs 34 ms per frame).
+- **Templates carry a format version and old ones are refused.** The
+  template file is now version 2; a version-1 file from authFace produces a
+  clear "re-enrol" error (and password fallback) rather than being compared
+  against incomparable vectors.
+
+### Changed
+
+- **Default threshold is 0.5** for new installs (an existing
+  `/etc/face-auth.toml` is kept). Measured same-user scores span 0.60-0.95
+  across poses; a moving, partly out-of-frame face scored 0.49. Impostor
+  scores were not measured and should be checked with a second person before
+  lowering it further.
+- **Enrolment captures 8 frames, 500 ms apart, and skips near-duplicates**
+  (similarity >= 0.97 to a frame already captured in the same run), so the
+  user is nudged to move their head and the templates cover the poses the
+  lock screen will see.
+- **tract upgraded to 0.23.** tract 0.21 silently computed garbage for the
+  SCRFD graph (box values around 1e25, unoptimised graph failing with a
+  broadcast error at an Add node); 0.23 runs it correctly. The recogniser
+  also got faster: 22 ms vs 38 ms per frame.
+- `cargo run --example probe` enrols into a directory you own and scores
+  live frames against it, including an empty-room mode; this is how the
+  numbers above were measured.
+
 ### Fixed
 
 - **Face detector input was normalised to 0..1 instead of the model's
@@ -26,7 +65,8 @@ Changes since the fork from authFace at `96a2fda`.
 ### Changed
 
 - Release builds are stripped and built with fat LTO and a single codegen
-  unit. The static `face-auth` binary drops from 26.7 MB to well under 20 MB.
+  unit. The static `face-auth` binary drops from 26.7 MB to 18.2 MB and
+  per-frame inference by about a third.
 
 ## [Unreleased]
 

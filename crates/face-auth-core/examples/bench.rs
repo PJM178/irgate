@@ -5,7 +5,7 @@
 use face_auth_core::capture::Camera;
 use face_auth_core::detector::{assess_frame, FaceDetector, FrameQuality};
 use face_auth_core::inference::FaceEncoder;
-use face_auth_core::preprocess::{histogram_equalize, preprocess_ir_frame};
+use face_auth_core::preprocess::{align_face, histogram_equalize};
 use face_auth_core::FaceAuthConfig;
 use std::time::Instant;
 
@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
     println!("per-attempt breakdown:");
     println!(
         "{:>3} {:>10} {:>10} {:>10} {:>10} {:>10}  result",
-        "n", "capture", "equalize", "detect", "preprocess", "encode"
+        "n", "capture", "equalize", "detect", "align", "encode"
     );
 
     let mut totals = [std::time::Duration::ZERO; 5];
@@ -70,14 +70,14 @@ fn main() -> anyhow::Result<()> {
         let found = detector.detect(&frame)?;
         let t_detect = t.elapsed();
 
-        if !found {
+        let Some(face) = found else {
             println!("{n:>3} {t_capture:>10.1?} {t_eq:>10.1?} {t_detect:>10.1?} {:>10} {:>10}  no face",
                      "-", "-");
             continue;
-        }
+        };
 
         let t = Instant::now();
-        let input = preprocess_ir_frame(&frame)?;
+        let input = align_face(&frame, &face.landmarks)?;
         let t_pre = t.elapsed();
 
         let t = Instant::now();
@@ -102,7 +102,7 @@ fn main() -> anyhow::Result<()> {
         println!("  capture     {:>9.1?}", per(totals[0]));
         println!("  equalize    {:>9.1?}", per(totals[1]));
         println!("  detect      {:>9.1?}", per(totals[2]));
-        println!("  preprocess  {:>9.1?}", per(totals[3]));
+        println!("  align       {:>9.1?}", per(totals[3]));
         println!("  encode      {:>9.1?}", per(totals[4]));
         println!("  TOTAL       {:>9.1?}  (+ scan_interval_ms between attempts)", per(sum));
     }

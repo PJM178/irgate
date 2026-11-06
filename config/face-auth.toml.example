@@ -30,7 +30,12 @@
 
 # Cosine similarity threshold (0.3 - 1.0, HIGHER = stricter match).
 # This is the floor: a user cannot go below it, only above.
-threshold = 0.6
+#
+# Templates are landmark-aligned face crops. Measured on the reference IR
+# camera, the enrolled user scores 0.60-0.95 across normal posture, leaning
+# back and 20° head turns; a stranger should fall well below 0.4. Every scan's
+# best score is logged (journalctl -t face-auth), so tune from real numbers.
+threshold = 0.5
 
 # ONNX model path (default: /usr/local/share/face-auth/w600k_mbf.onnx)
 # model_path = "/usr/local/share/face-auth/w600k_mbf.onnx"
@@ -42,8 +47,10 @@ threshold = 0.6
 # Camera capture timeout in milliseconds (100 - 30000, default 5000)
 capture_timeout_ms = 5000
 
-# Face detection ONNX model path (default: /usr/local/share/face-auth/version-slim-320.onnx)
-# detector_model_path = "/usr/local/share/face-auth/version-slim-320.onnx"
+# Face detection ONNX model path (default: /usr/local/share/face-auth/det_500m.onnx).
+# SCRFD, from the same InsightFace pack as the recogniser; it supplies the five
+# landmarks the face is aligned on before encoding.
+# detector_model_path = "/usr/local/share/face-auth/det_500m.onnx"
 
 # Face detection confidence threshold (0.05 - 1.0, higher = stricter)
 detector_threshold = 0.5

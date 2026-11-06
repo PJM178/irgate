@@ -1,7 +1,7 @@
 use tract_onnx::prelude::*;
 
 pub struct FaceEncoder {
-    model: TypedRunnableModel<TypedModel>,
+    model: std::sync::Arc<TypedRunnableModel>,
 }
 
 impl FaceEncoder {
@@ -32,7 +32,7 @@ impl FaceEncoder {
         let input_value = Tensor::from(input).into_tvalue();
         let result = self.model.run(tvec!(input_value))?;
 
-        let output = result[0].to_array_view::<f32>()?;
+        let output = result[0].to_plain_array_view::<f32>()?;
         let embedding: Vec<f32> = output.iter().copied().collect();
 
         anyhow::ensure!(!embedding.is_empty(), "encoder returned an empty embedding");

@@ -1,14 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
+# Both models come from one InsightFace release archive: the recogniser
+# (w600k_mbf) and the detector it was trained to sit behind (det_500m, SCRFD
+# with five facial landmarks). Each file is SHA-256 pinned individually, so a
+# copy placed in models/ by hand is checked exactly like a download.
 MODEL_URL="https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_sc.zip"
+MODEL_NAME="w600k_mbf.onnx"
 MODEL_CHECKSUM="9cc6e4a75f0e2bf0b1aed94578f144d15175f357bdc05e815e5c4a02b319eb4f"
-
-# Pinned to the commit that introduced the file, not to a moving branch: a
-# `master` URL silently changes what gets installed. The checksum is the real
-# gate; the pin keeps it from breaking on an unrelated upstream commit.
-DETECTOR_URL="https://raw.githubusercontent.com/Linzaer/Ultra-Light-Fast-Generic-Face-Detector-1MB/0f9ca4a9fc80170fd505168fd1132b837141f7df/models/onnx/version-slim-320.onnx"
-DETECTOR_CHECKSUM="e9adbd0f920ddcce9368434c4d34d72520dc0c19b526fd44b4ef49bde2c3b1a8"
+DETECTOR_NAME="det_500m.onnx"
+DETECTOR_CHECKSUM="5e4447f50245bbd7966bd6c0fa52938c61474a04ec7def48753668a9d8b4ea3a"
 
 BIN_DIR="/usr/local/bin"
 SHARE_DIR="/usr/local/share/face-auth"
@@ -174,45 +175,44 @@ fetch() {
     return 1
 }
 
-echo "Installing model..."
-MODEL_NAME="w600k_mbf.onnx"
-if [ -f "$SHARE_DIR/$MODEL_NAME" ]; then
-    echo "Model already installed at $SHARE_DIR/$MODEL_NAME"
-elif [ -f "models/$MODEL_NAME" ]; then
-    verify "models/$MODEL_NAME" "$MODEL_CHECKSUM" || exit 1
-    install -Dm644 "models/$MODEL_NAME" "$SHARE_DIR/$MODEL_NAME"
-    echo "Installed model from models/$MODEL_NAME"
-else
-    echo "Downloading model from InsightFace..."
-    fetch "$MODEL_URL" "$WORK_DIR/buffalo_sc.zip" \
-        "  mkdir -p models
+# install_model <name> <checksum> — from $SHARE_DIR (already there), models/
+# (staged by hand) or the archive fetched into $WORK_DIR (downloaded once for
+# both models). Returns 1 if the archive is needed and absent.
+install_model() {
+    local name="$1" want="$2"
+    if [ -f "$SHARE_DIR/$name" ] && verify "$SHARE_DIR/$name" "$want" 2>/dev/null; then
+        echo "Model already installed at $SHARE_DIR/$name"
+        return 0
+    fi
+    if [ -f "models/$name" ]; then
+        verify "models/$name" "$want" || return 1
+        install -Dm644 "models/$name" "$SHARE_DIR/$name"
+        echo "Installed $name from models/"
+        return 0
+    fi
+    if [ ! -f "$WORK_DIR/$name" ]; then
+        if [ ! -f "$WORK_DIR/buffalo_sc.zip" ]; then
+            echo "Downloading $name (InsightFace buffalo_sc)..."
+            fetch "$MODEL_URL" "$WORK_DIR/buffalo_sc.zip" \
+                "  mkdir -p models
   curl -fL -o /tmp/buffalo_sc.zip '$MODEL_URL'
-  unzip -j /tmp/buffalo_sc.zip $MODEL_NAME -d models/" || exit 1
-    unzip -oq "$WORK_DIR/buffalo_sc.zip" -d "$WORK_DIR/"
-    verify "$WORK_DIR/$MODEL_NAME" "$MODEL_CHECKSUM" || exit 1
-    install -Dm644 "$WORK_DIR/$MODEL_NAME" "$SHARE_DIR/$MODEL_NAME"
-    echo "Model downloaded and installed"
-fi
+  unzip -j /tmp/buffalo_sc.zip $MODEL_NAME $DETECTOR_NAME -d models/" || return 1
+        fi
+        unzip -oq "$WORK_DIR/buffalo_sc.zip" "$name" -d "$WORK_DIR/" \
+            || { echo "Error: $name not found in the archive"; return 1; }
+    fi
+    verify "$WORK_DIR/$name" "$want" || return 1
+    install -Dm644 "$WORK_DIR/$name" "$SHARE_DIR/$name"
+    echo "Installed $name"
+}
 
-echo "Installing face detector model..."
-DETECTOR_NAME="version-slim-320.onnx"
-if [ -f "$SHARE_DIR/$DETECTOR_NAME" ]; then
-    echo "Detector model already installed at $SHARE_DIR/$DETECTOR_NAME"
-elif [ -f "models/$DETECTOR_NAME" ]; then
-    verify "models/$DETECTOR_NAME" "$DETECTOR_CHECKSUM" || exit 1
-    install -Dm644 "models/$DETECTOR_NAME" "$SHARE_DIR/$DETECTOR_NAME"
-    echo "Installed detector model from models/$DETECTOR_NAME"
-else
-    echo "Downloading face detector model..."
-    fetch "$DETECTOR_URL" "$WORK_DIR/$DETECTOR_NAME" \
-        "  mkdir -p models
-  curl -fL -o models/$DETECTOR_NAME '$DETECTOR_URL'" || exit 1
-    verify "$WORK_DIR/$DETECTOR_NAME" "$DETECTOR_CHECKSUM" || exit 1
-    install -Dm644 "$WORK_DIR/$DETECTOR_NAME" "$SHARE_DIR/$DETECTOR_NAME"
-    echo "Detector model downloaded and installed"
-    echo "Note: if face-auth reports that this model will not load, simplify it:"
-    echo "  python3 -m onnxsim $SHARE_DIR/$DETECTOR_NAME $SHARE_DIR/$DETECTOR_NAME"
-fi
+echo "Installing models..."
+install_model "$MODEL_NAME" "$MODEL_CHECKSUM" || exit 1
+install_model "$DETECTOR_NAME" "$DETECTOR_CHECKSUM" || exit 1
+
+# The old detector is no longer read; leave nothing behind that looks like it
+# matters.
+rm -f "$SHARE_DIR/version-slim-320.onnx"
 
 echo "Installing config..."
 if [ -f "$CONFIG_DIR/face-auth.toml" ]; then
@@ -306,6 +306,11 @@ fi
 echo ""
 echo "=== Install complete! ==="
 echo ""
+if [ -n "$(find "$VAR_DIR" -mindepth 2 -name embeddings.bin -print -quit 2>/dev/null)" ]; then
+    echo "NOTE: existing face templates were made by an older pipeline and will be"
+    echo "      refused (password fallback applies) until each user re-enrols."
+    echo ""
+fi
 echo "Enrol your face (enrolment writes a root-owned store, so it needs sudo):"
 echo ""
 echo "  sudo face-enroll --user $ACTUAL_USER"

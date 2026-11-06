@@ -10,6 +10,16 @@ pub const SYSTEM_CONFIG_PATH: &str = "/etc/face-auth.toml";
 /// Default embeddings location. Must stay root-owned and 0700 — see deploy.sh.
 pub const DEFAULT_EMBEDDINGS_DIR: &str = "/var/lib/face-auth";
 
+/// Default cosine-similarity threshold for a match.
+///
+/// Measured on the reference IR camera with landmark-aligned templates: the
+/// enrolled user scored 0.60-0.95 across normal posture, leaning back 30 cm
+/// and 20° head turns (mean 0.84), and 0.49 for a moving, partly out-of-frame
+/// face. Impostor scores were not measured; ArcFace-family models typically
+/// put a different person well below 0.4. 0.5 leaves pose margin without
+/// approaching that. Raise it in /etc/face-auth.toml to be stricter.
+pub const DEFAULT_THRESHOLD: f32 = 0.5;
+
 // Bounds applied to every config source. A threshold near zero accepts any
 // face at all, so the floor is enforced rather than merely documented.
 const THRESHOLD_RANGE: std::ops::RangeInclusive<f32> = 0.3..=1.0;
@@ -35,7 +45,7 @@ impl Default for FaceAuthConfig {
     fn default() -> Self {
         Self {
             device: None,
-            threshold: Some(0.6),
+            threshold: Some(DEFAULT_THRESHOLD),
             model_path: None,
             embeddings_dir: None,
             capture_timeout_ms: Some(5000),
@@ -206,7 +216,7 @@ impl FaceAuthConfig {
     }
 
     pub fn threshold(&self) -> f32 {
-        self.threshold.unwrap_or(0.6)
+        self.threshold.unwrap_or(DEFAULT_THRESHOLD)
     }
 
     pub fn model_path(&self) -> String {
@@ -231,7 +241,7 @@ impl FaceAuthConfig {
     pub fn detector_model_path(&self) -> String {
         self.detector_model_path
             .clone()
-            .unwrap_or_else(|| "/usr/local/share/face-auth/version-slim-320.onnx".to_string())
+            .unwrap_or_else(|| "/usr/local/share/face-auth/det_500m.onnx".to_string())
     }
 
     pub fn detector_threshold(&self) -> f32 {
@@ -409,7 +419,7 @@ mod tests {
         // with no system config rather than falling back to defaults.
         let cfg: FaceAuthConfig = Config::builder().build().unwrap().try_deserialize().unwrap();
         assert!(cfg.validate().is_ok());
-        assert_eq!(cfg.threshold(), 0.6);
+        assert_eq!(cfg.threshold(), DEFAULT_THRESHOLD);
         assert_eq!(cfg.embeddings_dir(), PathBuf::from(DEFAULT_EMBEDDINGS_DIR));
     }
 

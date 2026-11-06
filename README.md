@@ -327,6 +327,11 @@ sudo face-enroll --user $USER
 sudo face-enroll --improve --user $USER
 ```
 
+Enrolment captures 8 frames half a second apart. **Move while it runs**: turn and tilt
+your head a little between frames. A frame whose embedding is near-identical to one
+already captured is skipped, because eight copies of one pose teach the matcher
+nothing about the other poses it will see at the lock screen.
+
 CLI options: `--frames`, `--interval`, `--device`, `--threshold`, `--model`,
 `--embeddings-dir`, `--improve`, `-v`.
 
@@ -412,23 +417,43 @@ face-auth (static binary)
   ├─ Load /etc/face-auth.toml + strictly-narrowing user overlay
   ├─ V4L2 capture from IR camera (640×400 GREY, auto-detected /dev/videoN)
   │   └─ poll() with 5s timeout — exits cleanly if camera hangs
-  ├─ Histogram equalization
-  ├─ Face detection (RetinaFace-derived ONNX model)
-  ├─ Resize to 112×112, normalize to [-1, 1]
-  ├─ tract-onnx inference (MobileFaceNet, 512-d embedding)
-  ├─ Cosine similarity vs stored embeddings (default threshold 0.6)
+  ├─ Frame quality gate (rejects unlit strobe frames and covered lenses)
+  ├─ CLAHE contrast equalisation
+  ├─ Face detection with 5 landmarks (SCRFD det_500m, 320×320 letterbox)
+  ├─ Similarity-transform warp of the face to the 112×112 ArcFace layout
+  ├─ tract-onnx inference (MobileFaceNet w600k_mbf, 512-d embedding)
+  ├─ Cosine similarity vs stored templates (default threshold 0.5)
+  ├─ One journal line per scan: outcome, best score, frames, reject reason
   └─ Exit 0 (match) or exit 1 (no match → password prompt)
 ```
 
 ## Model
 
-Uses InsightFace **`w600k_mbf.onnx`** (MobileFaceNet @ WebFace600K, ~13 MB, 512-d output)
-from the `buffalo_sc` model pack, plus **`version-slim-320.onnx`** for face detection.
-Licensed under MIT (InsightFace is MIT-licensed).
+Both models come from InsightFace's `buffalo_sc` pack (MIT):
 
-The recognition model is **not bundled** in this repository. `deploy.sh` downloads it from
-InsightFace's official GitHub releases and verifies the SHA-256 checksum. The detection
-model is auto-downloaded from the Ultra-Light-Fast-Generic-Face-Detector-1MB repository.
+| File | Role | Size |
+|------|------|------|
+| `det_500m.onnx` | SCRFD face detector with five landmarks | 2.5 MB |
+| `w600k_mbf.onnx` | MobileFaceNet @ WebFace600K recogniser, 512-d output | 13 MB |
+
+Neither is bundled in this repository. `deploy.sh` downloads the pack once from
+InsightFace's official GitHub release, verifies each file's SHA-256, and installs both
+to `/usr/local/share/face-auth/`. A copy staged in `models/` is used instead of
+downloading, and is checked the same way.
+
+### Why alignment matters
+
+The recogniser was trained on 112×112 crops in which the eyes, nose and mouth sit at
+fixed positions. authFace fed it the whole 640×400 frame squashed to 112×112, so the
+embedding mostly described the room: on the reference machine an **empty chair scored
+0.65–0.77** against the enrolled template, above the 0.6 threshold, and the only face
+check left was the detector's "is any face present". irauth detects the face, warps it
+onto the ArcFace landmark layout, and encodes only that. With nobody in view there are
+no landmarks and nothing is scored; with the enrolled user it scores 0.60–0.95 across
+posture changes (mean 0.84) where the old pipeline gave 0.66–0.81.
+
+**Templates made by authFace are refused** (format version 1; irauth writes version 2)
+with a message telling the user to re-enrol. Password fallback applies until they do.
 
 ## SELinux
 
@@ -583,11 +608,11 @@ authFace/
       src/
         capture.rs           # V4L2 capture + poll() timeout + IR camera auto-detect
         config.rs            # Layered config + narrowing overlay for PAM + per-user load
-        detector.rs          # Face detection (RetinaFace-based ONNX model)
+        detector.rs          # SCRFD face detection with landmarks + frame quality gate
         error.rs             # Error types
         inference.rs         # tract-onnx model loading + encoding
         lib.rs               # FaceAuth struct, auth + enroll + scan
-        preprocess.rs        # Histogram equalize, resize, normalize
+        preprocess.rs        # CLAHE, similarity transform, landmark-aligned face warp
         storage.rs           # Binary embedding I/O (versioned, atomic, 0600)
         user.rs              # NSS lookup + username validation
         verify.rs            # Cosine similarity
@@ -616,4 +641,4 @@ MIT
 
 This is a fork of [pfalkingham/authFace](https://github.com/pfalkingham/authFace) (MIT). The
 facial recognition model is InsightFace's `w600k_mbf.onnx` (MIT) and the face detector is
-`version-slim-320.onnx` (MIT).
+InsightFace's `det_500m.onnx` (MIT).

@@ -1,5 +1,7 @@
 use clap::Parser;
-use face_auth_core::{user, EnrollProgress, FaceAuth, FaceAuthConfig};
+use face_auth_core::{
+    user, EnrollProgress, FaceAuth, FaceAuthConfig, ENROLL_DEFAULT_FRAMES, ENROLL_DEFAULT_INTERVAL_MS,
+};
 use tracing_subscriber::{fmt, EnvFilter};
 
 #[derive(Parser, Debug)]
@@ -12,10 +14,10 @@ struct Args {
     #[arg(short, long, help = "Username to enrol")]
     user: String,
 
-    #[arg(short, long, help = "Number of frames to capture", default_value = "5")]
+    #[arg(short, long, help = "Number of frames to capture", default_value_t = ENROLL_DEFAULT_FRAMES)]
     frames: usize,
 
-    #[arg(long, help = "Interval between frames (ms)", default_value = "400")]
+    #[arg(long, help = "Interval between frames (ms)", default_value_t = ENROLL_DEFAULT_INTERVAL_MS)]
     interval: u64,
 
     #[arg(long, help = "Camera device path (overrides config)")]
@@ -92,6 +94,10 @@ fn main() -> anyhow::Result<()> {
     println!("  model:      {}", config.model_path());
     println!("  templates:  {}", config.embeddings_dir().display());
     println!();
+    println!("Look at the camera. While frames are captured, slowly turn and tilt your");
+    println!("head a little: left, right, up, down. Frames too similar to one already");
+    println!("captured are skipped, so holding still only slows this down.");
+    println!();
 
     let mut auth = FaceAuth::new(config)?;
 
@@ -101,6 +107,9 @@ fn main() -> anyhow::Result<()> {
         }
         EnrollProgress::NoContent => println!("  nothing in frame, retrying..."),
         EnrollProgress::NoFace => println!("  no face detected, retrying..."),
+        EnrollProgress::TooSimilar => {
+            println!("  too similar to a frame already captured — turn or tilt your head a little")
+        }
         EnrollProgress::Captured { captured, wanted } => {
             println!("  captured {captured}/{wanted}");
         }

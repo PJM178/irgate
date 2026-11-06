@@ -26,6 +26,13 @@ pub enum FaceAuthError {
     #[error("Invalid embedding format")]
     InvalidEmbeddingFormat,
 
+    #[error(
+        "face templates are in format {found}, this build needs {expected}: they were \
+         enrolled by an older version whose embeddings are not comparable to this \
+         one's; re-enrol with `sudo face-enroll --user <user>`"
+    )]
+    OutdatedEmbeddings { found: u32, expected: u32 },
+
     #[error("No face detected in frame")]
     NoFaceDetected,
 }
