@@ -15,7 +15,7 @@
 #   model_path, detector_model_path, embeddings_dir
 #                                   ignored — system policy only
 #
-# FACE_AUTH_* environment variables affect face-enroll and the settings GUI.
+# FACE_AUTH_* environment variables affect face-enroll and the examples.
 # They are ignored entirely during PAM authentication.
 
 # IR camera device path.

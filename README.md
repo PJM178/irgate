@@ -22,7 +22,6 @@ By [Peter Falkingham](https://peterfalkingham.com)
 - **~2 seconds** from camera poll to authenticated
 - **Static musl binary** — no dependencies, no runtime
 - **No daemon, no systemd units, no D-Bus**
-- **GUI settings panel** (optional GTK4 app) for camera selection and enrollment
 - **Immutable-first** — everything fits in `/usr/local` and `~/.local`, no `/usr` modifications needed
 
 ## Upstream Merges & Security Pass
@@ -40,8 +39,7 @@ Improvements merged from [SamVivan1/authFace](https://github.com/SamVivan1/authF
 Followed by a security pass over the whole tree — see [CHANGELOG.md](CHANGELOG.md)
 for the full list. The changes that affect how you use it:
 
-- **Enrolment needs root** (`sudo face-enroll`, or one click in the GUI via
-  `pkexec`). Face templates are authentication data; when the store was
+- **Enrolment needs root** (`sudo face-enroll`). Face templates are authentication data; when the store was
   world-writable, any local user could enrol a face for an account that had not
   enrolled yet, then log in as it.
 - **The login prompt trusts only `/etc/face-auth.toml`.** Your own config can
@@ -60,7 +58,6 @@ is needed**.
 - **No daemon, no systemd, no D-Bus** — just `pam_exec.so` triggered by PAM
 - **Configurable** via `/etc/face-auth.toml`, `~/.config/face-auth.toml`, or environment variables
 - **Built-in capture timeout** (5s default) — camera hang won't lock you out
-- **GTK4 settings GUI** — select IR camera, adjust threshold, preview live feed, enroll, improve matching, and test face recognition
 - **Works on immutable distros** — no `rpm-ostree layer`, no package installs, no `/usr` modification
 
 ## Quick Start
@@ -74,29 +71,7 @@ sudo face-enroll --user $USER
 
 # 3. Test sudo
 sudo -k && sudo true   # triggers IR camera → exit 0
-
-# 4. (Optional) Install the settings GUI
-sudo ./deploy-gui.sh
-
-# 5. Launch the GUI from app menu: "Face Authentication Settings"
-#    or run: face-auth-gtk
 ```
-
-## GUI — Face Authentication Settings
-
-A native GTK4/libadwaita settings panel for configuring and testing face unlock:
-
-| Feature | Description |
-|---------|-------------|
-| **Live IR preview** | Real-time camera feed with face-detection overlay |
-| **Camera picker** | Dropdown to select between IR cameras (pre-filtered to openable devices) |
-| **Threshold slider** | Adjust similarity threshold (0.1–0.95) — higher = stricter match |
-| **Enroll** | Captures 5 frames and stores face embeddings (replaces existing) |
-| **Improve Matching** | Captures 5 more frames and appends to existing embeddings |
-| **Test** | Captures a single frame and compares against enrolled embeddings |
-| **Automatic config save** | Camera and threshold changes persist to `~/.config/face-auth.toml` |
-
-The GUI is optional and deployed separately (no GTK dependencies bundled with the core auth binary).
 
 ## Requirements
 
@@ -112,16 +87,14 @@ The GUI is optional and deployed separately (no GTK dependencies bundled with th
 - PAM with `pam_exec.so` (standard on all distros)
 - SELinux (Fedora/Bluefin/Silverblue) — deploy script installs policy automatically
 - `policycoreutils` for SELinux policy compilation (installed by default on Fedora)
-- For the GUI: GTK4 + libadwaita runtime libraries (system-installed, not bundled)
 
 ### Software (build system — where you compile)
 
-You need a Rust toolchain. For the core auth (musl), add `x86_64-unknown-linux-musl` target.
-For the GUI (dynamic GTK), the host target is sufficient.
+You need a Rust toolchain with the `x86_64-unknown-linux-musl` target.
 
 ## Building from Source
 
-### Core auth (static musl — no runtime deps)
+### Static musl build (no runtime deps)
 
 ```bash
 # Install Rust if needed
@@ -137,21 +110,6 @@ cargo build --release --target x86_64-unknown-linux-musl -p face-auth -p face-en
 
 # Deploy
 sudo ./deploy.sh
-```
-
-### GUI (dynamic GTK — needs GTK4 + libadwaita devel packages)
-
-```bash
-# Install GTK development libraries
-sudo pacman -S --needed gtk4 libadwaita        # Arch / CachyOS
-sudo dnf install gtk4-devel libadwaita-devel   # Fedora
-sudo apt install libgtk-4-dev libadwaita-1-dev # Debian / Ubuntu
-
-# Build
-cargo build --release -p face-auth-gtk
-
-# Deploy
-sudo ./deploy-gui.sh
 ```
 
 ### Without installing a toolchain (container build)
@@ -170,8 +128,7 @@ sudo ./deploy.sh
 
 `rust:alpine` targets musl natively, so the result is the same static binary.
 Run the container as your own user (not under `sudo`) so the files in `target/`
-stay yours. This does not work for the GTK GUI, which links against the host's
-GTK4 and must be built on the host.
+stay yours.
 
 ### On immutable distros via distrobox
 
@@ -183,7 +140,7 @@ distrobox enter authface-dev
 # Inside the container, install build deps (once).
 # Note: Fedora does not package a musl std for Rust, so the musl build needs
 # rustup rather than the distro `rust` package.
-sudo dnf install -y gcc musl-gcc gtk4-devel libadwaita-devel
+sudo dnf install -y gcc musl-gcc
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
   --target x86_64-unknown-linux-musl
 source "$HOME/.cargo/env"
@@ -191,17 +148,11 @@ source "$HOME/.cargo/env"
 # Build
 cd ~/Projects/authFace
 cargo build --release --target x86_64-unknown-linux-musl -p face-auth -p face-enroll
-cargo build --release -p face-auth-gtk
 
 # Exit container, then deploy on host
 exit
 sudo ./deploy.sh
-sudo ./deploy-gui.sh
 ```
-
-The GUI binary links against GTK4 dynamically, so build it in an environment
-whose GTK version matches the host's — a distrobox sharing the host is fine, an
-unrelated container image may not be.
 
 > **`sudo ./deploy.sh` and `cargo`:** if you installed Rust with rustup, `cargo`
 > lives in `~/.cargo/bin`, which is not on root's `PATH`. The script looks there
@@ -209,8 +160,6 @@ unrelated container image may not be.
 > `sudo ./deploy.sh` works and does not leave root-owned files in `target/`.
 
 ## Deployment
-
-### Core (PAM authentication)
 
 ```bash
 sudo ./deploy.sh
@@ -232,32 +181,19 @@ GDM lock-screen patching is **distro-aware**:
 
 Each PAM file is backed up with a `.face-auth.bak` suffix.
 
-### GUI (optional settings panel)
-
-```bash
-sudo ./deploy-gui.sh
-```
-
-Automatically detects whether `/usr` is writable:
-- **Mutable systems**: installs to `/usr/local/bin`, `/usr/share/applications/`, `/usr/share/icons/`
-- **Immutable systems**: installs to `~/.local/bin`, `~/.local/share/applications/`, `~/.local/share/icons/`
-
-Launch from the application menu: **Face Authentication Settings**, or run `face-auth-gtk`.
-
 ### Uninstall
 
 ```bash
-# Remove everything (core + GUI + models + config)
+# Remove binaries, models, config and PAM hooks
 sudo ./uninstall.sh
-
-# Remove only the optional GUI
-sudo ./uninstall.sh --gui
 
 # Remove everything including face embeddings
 sudo ./uninstall.sh --purge
 ```
 
-Restores PAM backups, removes binaries, models, config, SELinux policy, desktop entries, and icons.
+Restores PAM backups and removes binaries, models, config and the SELinux
+policy. It also removes anything an older install of the settings GUI left
+behind (binary, desktop entry, icon).
 
 ## Configuration
 
@@ -271,7 +207,7 @@ The authentication path and the unprivileged tools trust different things.
 | `~/.config/face-auth.toml` | May only make authentication **stricter** — see below |
 | `FACE_AUTH_*` environment | **Ignored entirely** |
 
-**For `face-enroll` and the settings GUI**, the usual layering applies:
+**For `face-enroll`**, the usual layering applies:
 environment variables, then `~/.config/face-auth.toml`, then `/etc/face-auth.toml`.
 
 ### What a user may override at the login prompt
@@ -290,7 +226,7 @@ narrowing overlay:
 This is what stops code running as you — which does not know your password —
 from writing a permissive `~/.config/face-auth.toml` and turning your next
 `sudo` into a root shell. To *loosen* matching, edit `/etc/face-auth.toml` as
-root; the GUI's slider starts at the system value for the same reason.
+root.
 
 Example `/etc/face-auth.toml`:
 ```toml
@@ -310,8 +246,6 @@ Environment variable names follow the field names, so the capture timeout is
 > Auto-detection opens each IR-named candidate and takes the first that is
 > really a GREY capture device, which gets this right; a hand-written path
 > often does not.
-
-The GUI writes camera and threshold changes to `~/.config/face-auth.toml`.
 
 ## Enrollment
 
@@ -334,11 +268,11 @@ nothing about the other poses it will see at the lock screen.
 CLI options: `--frames`, `--interval`, `--device`, `--threshold`, `--model`,
 `--embeddings-dir`, `--improve`, `-v`.
 
-The GUI's **Enroll Face**, **Improve Matching** and **Test Authentication**
-buttons run the same helpers through `pkexec`, so you get a graphical
-authentication prompt instead of a terminal. polkit's default for
-`org.freedesktop.policykit.exec` is `auth_admin_keep`, so consecutive actions
-within a few minutes will not re-prompt.
+To check the template without going through PAM:
+
+```bash
+sudo face-auth --verify $USER   # exit 0 = match, 1 = no match, 2 = error
+```
 
 Why this is not user-writable: whatever can write a face template decides whose
 face unlocks that account. If your own login could rewrite it, then so could
@@ -509,9 +443,6 @@ echo $?   # 0 = match, 1 = no match, 2 = error
 
 # Raise the capture timeout (note the _MS suffix)
 FACE_AUTH_CAPTURE_TIMEOUT_MS=10000 sudo face-auth --verify $USER
-
-# GUI not launching from app menu?
-face-auth-gtk    # run from terminal to see errors
 ```
 
 ### "PAM_USER is not set"
@@ -580,7 +511,7 @@ A user config may only make matching *stricter*. To loosen it, lower
 
 - **Face templates are root-owned.** `/var/lib/face-auth` is mode `0700`,
   root:root, with templates at `0600`. Whatever can write a template decides
-  whose face unlocks that account, so enrolment goes through `sudo`/`pkexec`.
+  whose face unlocks that account, so enrolment goes through `sudo`.
 - **The PAM path trusts only `/etc/face-auth.toml`.** A user's own config may
   make matching stricter, never looser, and may not redirect the model or
   template paths. `FACE_AUTH_*` environment variables are ignored during
@@ -631,11 +562,10 @@ authFace/
         verify.rs            # Cosine similarity
     face-auth/               # PAM binary (stdin-less, PAM_USER fallback)
     face-enroll/             # Enrollment CLI
-    face-auth-gtk/           # GTK4 settings GUI
   config/
     face-auth.toml.example   # Documented config template
   data/
-    desktop file + icon      # App launcher assets
+    *.svg                    # Project icon (used in this README)
   selinux/
     face-auth.te             # SELinux policy source
   extensions/
@@ -644,8 +574,7 @@ authFace/
       metadata.json
       install-extension.sh
   deploy.sh                  # Core auth installer
-  deploy-gui.sh              # Optional GUI installer
-  uninstall.sh               # Removal script (--gui, --purge flags)
+  uninstall.sh               # Removal script (--purge also deletes templates)
 ```
 
 ## License

@@ -58,6 +58,18 @@ Changes since the fork from authFace at `96a2fda`.
   live frames against it, including an empty-room mode; this is how the
   numbers above were measured.
 
+### Removed
+
+- **The GTK4 settings GUI (`face-auth-gtk`, `deploy-gui.sh`).** It had not
+  been built or run since the fork, had already fallen behind the command-line
+  tools (it enrolled 5 frames instead of 8), and everything it did is one
+  command: `sudo face-enroll --user $USER [--improve]`,
+  `sudo face-auth --verify $USER`, and editing `/etc/face-auth.toml`. Dropping
+  it also drops the GTK4/libadwaita build dependency and the `pkexec` path into
+  the root-only tools. `uninstall.sh` loses its `--gui` flag but still removes
+  files an earlier GUI install left behind. `user::invoking()`, which only the
+  GUI used, is gone with it. The code remains in git history.
+
 ### Fixed
 
 - **Face unlock now works in a dark room.** In darkness (no ambient IR, so

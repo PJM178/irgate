@@ -139,7 +139,7 @@ fn journal_outcome(user: &str, outcome: &ScanOutcome) {
 /// result and exits 0 on a match, 1 otherwise.
 fn run_verify(name: &str) -> ! {
     if unsafe { libc::geteuid() } != 0 {
-        eprintln!("--verify reads root-owned templates; re-run with sudo or pkexec");
+        eprintln!("--verify reads root-owned templates; re-run with sudo");
         std::process::exit(2);
     }
     let info = match user::lookup(name) {
@@ -190,7 +190,7 @@ fn main() {
     journal::open();
     let t0 = Instant::now();
 
-    // `--verify <user>` is the settings GUI's "Test Authentication" path. It
+    // `--verify <user>` tests a stored face by hand, outside PAM. It
     // reads the same root-owned templates the PAM path does, so it requires
     // root; it grants nothing a root caller did not already have.
     let argv: Vec<String> = env::args().skip(1).collect();

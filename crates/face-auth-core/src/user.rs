@@ -88,52 +88,6 @@ pub fn lookup(user: &str) -> Result<UserInfo> {
     Ok(info)
 }
 
-/// Resolve the human behind this session, not the account the process happens
-/// to run as.
-///
-/// A settings GUI started with `sudo` or `pkexec` runs as root, so `current()`
-/// would report `root` and the app would silently enrol and test root's face
-/// while PAM authenticates the desktop user — two templates, both "working",
-/// neither helping. `sudo` and `pkexec` both record who invoked them, so
-/// prefer that and fall back to the real UID.
-pub fn invoking() -> Result<UserInfo> {
-    for var in ["SUDO_UID", "PKEXEC_UID"] {
-        let Ok(raw) = std::env::var(var) else { continue };
-        let Ok(uid) = raw.trim().parse::<u32>() else { continue };
-        if uid == 0 {
-            continue; // root invoking root tells us nothing new
-        }
-        if let Ok(info) = by_uid(uid) {
-            tracing::debug!(%var, uid, user = %info.name, "resolved invoking user");
-            return Ok(info);
-        }
-    }
-    current()
-}
-
-/// Resolve the account this process is running as, via its real UID.
-/// Avoids trusting `$USER`/`$LOGNAME`, which are just environment strings.
-pub fn current() -> Result<UserInfo> {
-    by_uid(unsafe { libc::getuid() })
-}
-
-fn by_uid(uid: u32) -> Result<UserInfo> {
-    let output = Command::new("getent")
-        .arg("passwd")
-        .arg(uid.to_string())
-        .output()
-        .context("failed to run getent")?;
-    if !output.status.success() {
-        bail!("no passwd entry for uid {}", uid);
-    }
-    let stdout = String::from_utf8(output.stdout).context("getent returned non-UTF-8 output")?;
-    stdout
-        .lines()
-        .next()
-        .and_then(parse_passwd_line)
-        .with_context(|| format!("could not parse passwd entry for uid {}", uid))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -166,38 +120,6 @@ mod tests {
     fn rejects_overlong_names() {
         assert!(validate_username(&"a".repeat(33)).is_err());
         assert!(validate_username(&"a".repeat(32)).is_ok());
-    }
-
-    #[test]
-    fn invoking_prefers_the_sudo_caller_over_root() {
-        // Guards the bug this fixes: `sudo face-auth-gtk` runs as root, so
-        // using the process UID enrolled root while PAM authenticated the
-        // desktop user. Both halves "worked"; neither helped.
-        let me = current().expect("current user");
-        if me.uid == 0 {
-            return; // meaningless when the test itself runs as root
-        }
-        std::env::set_var("SUDO_UID", me.uid.to_string());
-        let got = invoking().expect("invoking user");
-        std::env::remove_var("SUDO_UID");
-        assert_eq!(got.name, me.name);
-    }
-
-    #[test]
-    fn invoking_ignores_a_root_sudo_uid() {
-        std::env::set_var("SUDO_UID", "0");
-        let got = invoking();
-        std::env::remove_var("SUDO_UID");
-        // Falls through to the process UID rather than claiming root.
-        assert_eq!(got.unwrap().uid, unsafe { libc::getuid() });
-    }
-
-    #[test]
-    fn invoking_ignores_junk_in_the_environment() {
-        std::env::set_var("SUDO_UID", "not-a-number");
-        let got = invoking();
-        std::env::remove_var("SUDO_UID");
-        assert_eq!(got.unwrap().uid, unsafe { libc::getuid() });
     }
 
     #[test]

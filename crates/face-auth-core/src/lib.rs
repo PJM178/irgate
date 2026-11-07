@@ -133,8 +133,9 @@ impl FaceAuth {
         Ok(Some((face, embedding)))
     }
 
-    /// Single-shot verification. Used by the settings GUI's test button; the
-    /// PAM path uses [`FaceAuth::authenticate_scan`].
+    /// Single-shot verification from one frame. Nothing in irauth calls this
+    /// now; the PAM path and `face-auth --verify` use
+    /// [`FaceAuth::authenticate_scan`].
     pub fn authenticate_once(&mut self, user: &str) -> Result<bool> {
         let t0 = Instant::now();
         let store = EmbeddingStore::load(user, &self.config.embeddings_dir())?;

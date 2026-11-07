@@ -269,7 +269,7 @@ fi
 #
 # Face templates are authentication data. Anything that can write them can
 # choose whose face unlocks an account, so the store is root-owned and 0700 and
-# enrolment goes through sudo/pkexec. Earlier versions made this 1777 with
+# enrolment goes through sudo. Earlier versions made this 1777 with
 # user-owned subdirectories, which let any local user create a template
 # directory for an account that had not enrolled yet.
 echo "Securing embeddings directory..."

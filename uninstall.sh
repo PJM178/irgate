@@ -2,12 +2,10 @@
 set -euo pipefail
 
 PURGE=false
-GUI_ONLY=false
 
 for arg in "$@"; do
     case "$arg" in
         --purge) PURGE=true ;;
-        --gui)   GUI_ONLY=true ;;
     esac
 done
 
@@ -42,29 +40,9 @@ else
     GUI_DATA_DIR="${XDG_DATA_HOME:-$ACTUAL_HOME/.local/share}/face-auth-gtk"
 fi
 
-if [ "$GUI_ONLY" = true ]; then
-    echo "Removing GUI binary..."
-    rm -f "$BIN_DIR/face-auth-gtk"
-    rm -f "${XDG_BIN_HOME:-$ACTUAL_HOME/.local/bin}/face-auth-gtk"
-
-    echo "Removing desktop file..."
-    rm -f "$APP_DIR/com.github.pfalkingham.face-auth-gtk.desktop"
-
-    echo "Removing icon..."
-    rm -f "$ICON_DIR/com.github.pfalkingham.face-auth-gtk.svg"
-
-    echo "Removing GUI data..."
-    rm -rf "$GUI_DATA_DIR"
-
-    echo ""
-    echo "GUI uninstall complete!"
-    exit 0
-fi
-
 echo "Removing binaries..."
 rm -f "$BIN_DIR/face-auth"
 rm -f "$BIN_DIR/face-enroll"
-rm -f "$BIN_DIR/face-auth-gtk"
 
 echo "Removing model and SELinux policy..."
 rm -rf "$SHARE_DIR"
@@ -72,7 +50,11 @@ rm -rf "$SHARE_DIR"
 echo "Removing config..."
 rm -f "$CONFIG_DIR/face-auth.toml"
 
-echo "Removing desktop entry and icon..."
+# The settings GUI was removed from irauth. Clean up what an earlier
+# deploy-gui.sh may have installed.
+echo "Removing leftovers of the old settings GUI..."
+rm -f "$BIN_DIR/face-auth-gtk"
+rm -f "${XDG_BIN_HOME:-$ACTUAL_HOME/.local/bin}/face-auth-gtk"
 rm -f "$APP_DIR/com.github.pfalkingham.face-auth-gtk.desktop"
 rm -f "${XDG_DATA_HOME:-$ACTUAL_HOME/.local/share}/applications/com.github.pfalkingham.face-auth-gtk.desktop"
 rm -f "$ICON_DIR/com.github.pfalkingham.face-auth-gtk.svg"
