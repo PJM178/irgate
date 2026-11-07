@@ -20,11 +20,14 @@ Changes since the fork from authFace at `96a2fda`.
 
 - **The recogniser was matching the room, not the face.** The detector's
   bounding boxes were discarded and the encoder was fed the whole 640x400
-  frame squashed to 112x112. Measured on the reference machine, an empty chair
-  scored 0.65-0.77 against the enrolled template, above the 0.60 threshold;
-  the only face-specific check left in the login path was the detector's
-  "is any face present", so another person in the same chair would very
-  likely have unlocked the session. The pipeline now detects the face with
+  frame squashed to 112x112, so the embedding was dominated by the
+  background. Measured on the reference machine with the detector's check
+  bypassed, frames of the empty chair scored 0.65-0.77 against the enrolled
+  template, above the 0.60 threshold. An empty chair does not unlock on its
+  own, because the detector still has to report a face, but that yes/no
+  "is any face present" was the only face-specific check in the login path.
+  Whether a different person in the same seat would match was not measured;
+  the scores suggest it is likely. The pipeline now detects the face with
   InsightFace's SCRFD (`det_500m.onnx`, from the same `buffalo_sc` pack as
   the recogniser, which `deploy.sh` had been downloading and discarding),
   warps it onto the ArcFace five-landmark layout, and encodes only that. With

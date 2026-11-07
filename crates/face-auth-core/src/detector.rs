@@ -5,9 +5,9 @@
 //! The previous detector answered only "is there a face somewhere in the
 //! frame?" and its bounding boxes were discarded, so the recogniser was fed
 //! the whole 640x400 frame squashed to 112x112. Measured on the reference
-//! machine, an empty chair then scored 0.65–0.77 against the enrolled
-//! template, above the 0.60 threshold: the embedding described the room, not
-//! the face. This detector returns the five landmarks the encoder's alignment
+//! machine with that yes/no check bypassed, frames of the empty chair scored
+//! 0.65–0.77 against the enrolled template, above the 0.60 threshold: the
+//! embedding described the room, not the face. This detector returns the five landmarks the encoder's alignment
 //! needs (see `preprocess::align_face`).
 
 use image::DynamicImage;

@@ -34,7 +34,7 @@ Improvements merged from [SamVivan1/authFace](https://github.com/SamVivan1/authF
 | **Multi-IR-camera support** | Returned the *first* IR-named device in `/sys/class/video4linux` | Collects all IR candidates and uses the first that **actually opens** as a GREY capture device |
 | **Distro-aware PAM** | Only Fedora (`pam_selinux_permit.so` insertion point) | Also handles Ubuntu/Debian `gdm-password` (`#%PAM-1.0`) |
 | **PAM `quiet` flag** | no `quiet` | `pam_exec.so quiet` suppresses `pam_exec` chatter |
-| **Detector model download** | Required `models/version-slim-320.onnx` to be present | `deploy.sh` fetches it (now pinned to a commit and SHA-256 verified) |
+| **Detector model download** | Required `models/version-slim-320.onnx` to be present | `deploy.sh` fetches it (since replaced by SCRFD, see [Model](#model)) |
 | **Lock screen scan indicator** | None (silent scan) | `face-auth` writes a status file; a GNOME Shell extension renders scanning/ok/fail |
 
 Followed by a security pass over the whole tree — see [CHANGELOG.md](CHANGELOG.md)
@@ -220,8 +220,7 @@ sudo ./deploy.sh
 |------|------|---------|
 | Build | Compiles if `cargo` is available | Falls back to pre-built binaries in `target/` |
 | Binaries | Installs to `/usr/local/bin` | `face-auth` + `face-enroll` |
-| Detection model | Downloads `version-slim-320.onnx` if missing | From Ultra-Light-Fast-Generic-Face-Detector-1MB upstream |
-| Recog. model | Downloads from InsightFace | `w600k_mbf.onnx` (~13 MB) to `/usr/local/share/face-auth/` |
+| Models | Downloads InsightFace `buffalo_sc` if not staged in `models/` | `det_500m.onnx` + `w600k_mbf.onnx`, SHA-256 checked, to `/usr/local/share/face-auth/` |
 | Config | Installs default config | `/etc/face-auth.toml` |
 | PAM | Patches PAM service files | Adds `sufficient` `pam_exec.so quiet` to `sudo`, `gdm-password`, `swaylock` |
 | SELinux | Compiles and loads policy | Allows `xdm_t` to mmap camera for lock-screen auth |
@@ -429,7 +428,11 @@ face-auth (static binary)
 
 ## Model
 
-Both models come from InsightFace's `buffalo_sc` pack (MIT):
+Both models come from InsightFace's `buffalo_sc` pack. InsightFace's code is MIT, but
+its pretrained models are licensed for **non-commercial research use only**; check
+[InsightFace's licence terms](https://github.com/deepinsight/insightface#license) before
+using irauth anywhere that is not personal or research use. irauth's own licence does
+not cover the models.
 
 | File | Role | Size |
 |------|------|------|
@@ -445,9 +448,12 @@ downloading, and is checked the same way.
 
 The recogniser was trained on 112×112 crops in which the eyes, nose and mouth sit at
 fixed positions. authFace fed it the whole 640×400 frame squashed to 112×112, so the
-embedding mostly described the room: on the reference machine an **empty chair scored
-0.65–0.77** against the enrolled template, above the 0.6 threshold, and the only face
-check left was the detector's "is any face present". irauth detects the face, warps it
+embedding mostly described the room. On the reference machine, with the detector's
+check bypassed, frames of the **empty chair scored 0.65–0.77** against the enrolled
+template, above the 0.6 threshold. The empty chair would not unlock on its own (the
+detector still has to see a face), but the detector's yes/no "is any face present" was
+the only face-specific check. How a different person in the same seat would score was
+not measured. irauth detects the face, warps it
 onto the ArcFace landmark layout, and encodes only that. With nobody in view there are
 no landmarks and nothing is scored; with the enrolled user it scores 0.60–0.95 across
 posture changes (mean 0.84) where the old pipeline gave 0.66–0.81.

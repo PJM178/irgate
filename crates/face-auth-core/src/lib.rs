@@ -118,8 +118,8 @@ impl FaceAuth {
     ///
     /// `Ok(None)` means no face reached the threshold. The crop fed to the
     /// encoder is the landmark-aligned 112x112 face, never the frame itself:
-    /// embedding the whole frame made the template describe the room, and an
-    /// empty chair scored above the match threshold.
+    /// embedding the whole frame made the template describe the room, and
+    /// frames of the empty chair scored above the match threshold.
     pub fn probe_frame(&mut self, frame: &crate::capture::IrFrame) -> Result<Option<(Face, Vec<f32>)>> {
         self.encode_face(frame)
     }
