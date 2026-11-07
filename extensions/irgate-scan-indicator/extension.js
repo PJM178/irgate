@@ -5,7 +5,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
 
-const STATUS_FILENAME = 'face-auth-status';
+const STATUS_FILENAME = 'irgate-status';
 const RESULT_SHOW_MS = 1800;
 const STALE_SCAN_MS = 10000;
 
@@ -15,7 +15,7 @@ const STALE_SCAN_MS = 10000;
 // appeared.
 const LOCKED_MODES = ['unlock-dialog', 'lock-screen'];
 
-export default class AuthFaceScanIndicator extends Extension {
+export default class IrgateScanIndicator extends Extension {
     enable() {
         this._monitor = null;
         this._monitorChangedId = null;
@@ -118,7 +118,7 @@ export default class AuthFaceScanIndicator extends Extension {
             this._monitor = file.monitor_file(Gio.FileMonitorFlags.NONE, null);
             this._monitorChangedId = this._monitor.connect('changed', () => this._onStatusChanged());
         } catch (e) {
-            logError(e, 'authFace: could not watch scan status file');
+            logError(e, 'irgate: could not watch scan status file');
             this._monitor = null;
             return;
         }

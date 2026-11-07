@@ -1,5 +1,5 @@
 [package]
-name = "face-auth-core"
+name = "irgate-core"
 version = "0.1.0"
 edition = "2021"
 

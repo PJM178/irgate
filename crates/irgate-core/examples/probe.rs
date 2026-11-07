@@ -4,17 +4,17 @@
 //! Runs the real library pipeline (quality gate, CLAHE, SCRFD detection,
 //! landmark alignment, encoder) against templates in a directory you own, so
 //! it needs no root and never touches the system store. Honours the usual
-//! config layering, so `FACE_AUTH_DETECTOR_MODEL_PATH=...` works.
+//! config layering, so `IRGATE_DETECTOR_MODEL_PATH=...` works.
 //!
 //!   probe enroll <dir>          enrol into <dir> (move your head while it runs)
 //!   probe check  <dir> <secs>   score live frames against <dir> for <secs>
 //!   probe scene  <dir> <secs>   same, reporting how many frames had a face
 //!                               at all — run it with the chair empty
-use face_auth_core::detector::{assess_frame, FrameQuality};
-use face_auth_core::preprocess::histogram_equalize;
-use face_auth_core::storage::EmbeddingStore;
-use face_auth_core::verify::best_similarity;
-use face_auth_core::{
+use irgate_core::detector::{assess_frame, FrameQuality};
+use irgate_core::preprocess::histogram_equalize;
+use irgate_core::storage::EmbeddingStore;
+use irgate_core::verify::best_similarity;
+use irgate_core::{
     Camera, EnrollProgress, FaceAuth, FaceAuthConfig, ENROLL_DEFAULT_FRAMES,
     ENROLL_DEFAULT_INTERVAL_MS,
 };

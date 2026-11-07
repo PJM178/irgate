@@ -1,10 +1,10 @@
 [package]
-name = "face-enroll"
+name = "irgate-enroll"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-face-auth-core = { path = "../face-auth-core" }
+irgate-core = { path = "../irgate-core" }
 anyhow = { workspace = true }
 clap = { workspace = true }
 tracing = { workspace = true }

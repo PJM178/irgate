@@ -1,12 +1,12 @@
 //! Diagnostic: where does unlock latency go?
 //!
-//! Times model loading (paid once per PAM invocation, since `face-auth` is a
+//! Times model loading (paid once per PAM invocation, since `irgate` is a
 //! fresh process every unlock) and then each stage of the per-attempt loop.
-use face_auth_core::capture::Camera;
-use face_auth_core::detector::{assess_frame, FaceDetector, FrameQuality};
-use face_auth_core::inference::FaceEncoder;
-use face_auth_core::preprocess::{align_face, histogram_equalize};
-use face_auth_core::FaceAuthConfig;
+use irgate_core::capture::Camera;
+use irgate_core::detector::{assess_frame, FaceDetector, FrameQuality};
+use irgate_core::inference::FaceEncoder;
+use irgate_core::preprocess::{align_face, histogram_equalize};
+use irgate_core::FaceAuthConfig;
 use std::time::Instant;
 
 fn main() -> anyhow::Result<()> {

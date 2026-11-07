@@ -29,7 +29,7 @@ pub enum FaceAuthError {
     #[error(
         "face templates are in format {found}, this build needs {expected}: they were \
          enrolled by an older version whose embeddings are not comparable to this \
-         one's; re-enrol with `sudo face-enroll --user <user>`"
+         one's; re-enrol with `sudo irgate-enroll --user <user>`"
     )]
     OutdatedEmbeddings { found: u32, expected: u32 },
 

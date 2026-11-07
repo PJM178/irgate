@@ -12,13 +12,13 @@ DETECTOR_NAME="det_500m.onnx"
 DETECTOR_CHECKSUM="5e4447f50245bbd7966bd6c0fa52938c61474a04ec7def48753668a9d8b4ea3a"
 
 BIN_DIR="/usr/local/bin"
-SHARE_DIR="/usr/local/share/face-auth"
+SHARE_DIR="/usr/local/share/irgate"
 CONFIG_DIR="/etc"
 PAM_DIR="/etc/pam.d"
-VAR_DIR="/var/lib/face-auth"
-SELINUX_DIR="/usr/local/share/face-auth/selinux"
+VAR_DIR="/var/lib/irgate"
+SELINUX_DIR="/usr/local/share/irgate/selinux"
 
-PAM_LINE="auth       sufficient  pam_exec.so quiet /usr/local/bin/face-auth"
+PAM_LINE="auth       sufficient  pam_exec.so quiet /usr/local/bin/irgate"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Error: this script installs into /usr/local, /etc and /var/lib — run it with sudo."
@@ -32,9 +32,49 @@ echo "Cleaning up any previous partial setup..."
 
 for service in sudo swaylock gdm-password; do
     if [ -f "$PAM_DIR/$service" ]; then
-        sed -i '/pam_exec\.so.*face-auth/d' "$PAM_DIR/$service" 2>/dev/null || true
+        sed -i '/pam_exec\.so.*irgate/d' "$PAM_DIR/$service" 2>/dev/null || true
     fi
 done
+
+# ---- Migrate an install from before the rename (face-auth -> irgate) ----
+#
+# Config and face templates move to the new paths so nobody has to re-enrol.
+# The old binaries, models and SELinux module are removed at the end, once
+# the new ones are in place.
+LEGACY_NAME="face-auth"
+LEGACY_CONFIG="$CONFIG_DIR/$LEGACY_NAME.toml"
+LEGACY_VAR_DIR="/var/lib/$LEGACY_NAME"
+
+for service in sudo swaylock gdm-password; do
+    if [ -f "$PAM_DIR/$service" ]; then
+        sed -i '/pam_exec\.so.*face-auth/d' "$PAM_DIR/$service" 2>/dev/null || true
+        # Backup from the old installer; the PAM step below takes a new one.
+        rm -f "$PAM_DIR/$service.$LEGACY_NAME.bak"
+    fi
+done
+
+if [ -f "$LEGACY_CONFIG" ] && [ ! -L "$LEGACY_CONFIG" ] && [ ! -e "$CONFIG_DIR/irgate.toml" ]; then
+    echo "Moving $LEGACY_CONFIG to $CONFIG_DIR/irgate.toml..."
+    sed -e "s#/usr/local/share/$LEGACY_NAME/#$SHARE_DIR/#g" \
+        -e "s#$LEGACY_VAR_DIR#$VAR_DIR#g" \
+        "$LEGACY_CONFIG" > "$CONFIG_DIR/irgate.toml"
+    chmod 644 "$CONFIG_DIR/irgate.toml"
+    rm -f "$LEGACY_CONFIG"
+fi
+
+if [ -d "$LEGACY_VAR_DIR" ] && [ ! -L "$LEGACY_VAR_DIR" ] && [ ! -e "$VAR_DIR" ]; then
+    echo "Moving face templates from $LEGACY_VAR_DIR to $VAR_DIR..."
+    mv "$LEGACY_VAR_DIR" "$VAR_DIR"
+fi
+
+# The invoking user's own config. Moved as that user, so root never follows
+# links inside a home directory.
+ACTUAL_HOME="$(getent passwd "$ACTUAL_USER" | cut -d: -f6)"
+if [ -n "$ACTUAL_HOME" ] && [ -f "$ACTUAL_HOME/.config/$LEGACY_NAME.toml" ] \
+    && [ ! -e "$ACTUAL_HOME/.config/irgate.toml" ]; then
+    echo "Moving $ACTUAL_HOME/.config/$LEGACY_NAME.toml to irgate.toml..."
+    sudo -u "$ACTUAL_USER" mv "$ACTUAL_HOME/.config/$LEGACY_NAME.toml" "$ACTUAL_HOME/.config/irgate.toml" || true
+fi
 
 # ---- Build ----
 MUSL_TARGET="x86_64-unknown-linux-musl"
@@ -71,7 +111,7 @@ as_user() {
 build_with_cargo() {
     local cargo="$1"
     if ! as_user "$cargo" build --release --target "$MUSL_TARGET" \
-            -p face-auth -p face-enroll; then
+            -p irgate -p irgate-enroll; then
         echo ""
         echo "Build failed. If the error mentions a missing target, add it with:"
         echo "  rustup target add $MUSL_TARGET"
@@ -79,11 +119,11 @@ build_with_cargo() {
     fi
 }
 
-if [ -f "$ARTIFACT_DIR/face-auth" ] && [ -f "$ARTIFACT_DIR/face-enroll" ] \
-   && [ -z "${FACE_AUTH_FORCE_BUILD:-}" ]; then
+if [ -f "$ARTIFACT_DIR/irgate" ] && [ -f "$ARTIFACT_DIR/irgate-enroll" ] \
+   && [ -z "${IRGATE_FORCE_BUILD:-}" ]; then
     echo "Using pre-built binaries from $ARTIFACT_DIR/"
 elif CARGO_BIN="$(find_cargo)"; then
-    echo "Building face-auth with $CARGO_BIN..."
+    echo "Building irgate with $CARGO_BIN..."
     build_with_cargo "$CARGO_BIN" || exit 1
 else
     CONTAINER_ENGINE=""
@@ -106,7 +146,7 @@ else
         echo "    docker.io/library/rust:alpine \\"
         echo "    sh -c 'apk add --no-cache musl-dev && \\"
         echo "           cargo build --release --target $MUSL_TARGET \\"
-        echo "             -p face-auth -p face-enroll'"
+        echo "             -p irgate -p irgate-enroll'"
         echo ""
         echo "Option 2 — install a Rust toolchain:"
     else
@@ -122,7 +162,7 @@ else
     exit 1
 fi
 
-for bin in face-auth face-enroll; do
+for bin in irgate irgate-enroll; do
     if [ ! -f "$ARTIFACT_DIR/$bin" ]; then
         echo "Error: expected $ARTIFACT_DIR/$bin after the build, but it is missing."
         exit 1
@@ -131,8 +171,8 @@ done
 
 # ---- Install binaries ----
 echo "Installing binaries..."
-install -Dm755 "$ARTIFACT_DIR/face-auth" "$BIN_DIR/face-auth"
-install -Dm755 "$ARTIFACT_DIR/face-enroll" "$BIN_DIR/face-enroll"
+install -Dm755 "$ARTIFACT_DIR/irgate" "$BIN_DIR/irgate"
+install -Dm755 "$ARTIFACT_DIR/irgate-enroll" "$BIN_DIR/irgate-enroll"
 
 # ---- Install models ----
 # Staged in a private mktemp directory. A fixed /tmp path can be pre-created by
@@ -215,10 +255,10 @@ install_model "$DETECTOR_NAME" "$DETECTOR_CHECKSUM" || exit 1
 rm -f "$SHARE_DIR/version-slim-320.onnx"
 
 echo "Installing config..."
-if [ -f "$CONFIG_DIR/face-auth.toml" ]; then
-    echo "Keeping existing $CONFIG_DIR/face-auth.toml"
+if [ -f "$CONFIG_DIR/irgate.toml" ]; then
+    echo "Keeping existing $CONFIG_DIR/irgate.toml"
 else
-    install -Dm644 config/face-auth.toml.example "$CONFIG_DIR/face-auth.toml"
+    install -Dm644 config/irgate.toml.example "$CONFIG_DIR/irgate.toml"
 fi
 
 # ---- PAM setup ----
@@ -229,7 +269,7 @@ for service in sudo swaylock gdm-password; do
         echo "Warning: $conf not found, skipping"
         continue
     fi
-    cp "$conf" "$conf.face-auth.bak"
+    cp "$conf" "$conf.irgate.bak"
 
     if [ "$service" = "gdm-password" ] && grep -q "pam_selinux_permit\.so" "$conf"; then
         # Insert after pam_selinux_permit.so (Fedora lock screen)
@@ -241,8 +281,8 @@ for service in sudo swaylock gdm-password; do
 
     # sed silently does nothing when the anchor is absent, which would leave
     # the service unconfigured while the script still reported success.
-    if grep -q "pam_exec\.so.*face-auth" "$conf"; then
-        echo "Updated $conf (backup at $conf.face-auth.bak)"
+    if grep -q "pam_exec\.so.*irgate" "$conf"; then
+        echo "Updated $conf (backup at $conf.irgate.bak)"
     else
         echo "Warning: could not find an insertion point in $conf."
         echo "         Add this line manually, after the first line:"
@@ -254,15 +294,15 @@ done
 if command -v checkmodule &>/dev/null && command -v semodule_package &>/dev/null; then
     echo "Installing SELinux policy module for lock-screen camera access..."
     mkdir -p "$SELINUX_DIR"
-    cp selinux/face-auth.te "$SELINUX_DIR/face_auth.te"
-    checkmodule -M -m -o "$SELINUX_DIR/face_auth.mod" "$SELINUX_DIR/face_auth.te"
-    semodule_package -o "$SELINUX_DIR/face_auth.pp" -m "$SELINUX_DIR/face_auth.mod"
-    semodule -i "$SELINUX_DIR/face_auth.pp"
+    cp selinux/irgate.te "$SELINUX_DIR/irgate.te"
+    checkmodule -M -m -o "$SELINUX_DIR/irgate.mod" "$SELINUX_DIR/irgate.te"
+    semodule_package -o "$SELINUX_DIR/irgate.pp" -m "$SELINUX_DIR/irgate.mod"
+    semodule -i "$SELINUX_DIR/irgate.pp"
     echo "SELinux policy installed"
 else
     echo "Warning: SELinux tools not found. To enable lock-screen support, install:"
     echo "  sudo dnf install policycoreutils"
-    echo "Then compile and install the policy from selinux/face-auth.te"
+    echo "Then compile and install the policy from selinux/irgate.te"
 fi
 
 # ---- Embeddings directory ----
@@ -303,17 +343,37 @@ if [ -n "$(find "$VAR_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ];
     echo "  sudo rm -rf $VAR_DIR && sudo ./deploy.sh"
 fi
 
+# ---- Remove what the pre-rename install left behind ----
+if [ -e "$BIN_DIR/face-auth" ] || [ -e "$BIN_DIR/face-enroll" ] || [ -d "/usr/local/share/$LEGACY_NAME" ]; then
+    echo "Removing the old face-auth binaries and models..."
+    rm -f "$BIN_DIR/face-auth" "$BIN_DIR/face-enroll"
+    rm -rf "/usr/local/share/$LEGACY_NAME"
+fi
+if command -v semodule &>/dev/null && semodule -l 2>/dev/null | grep -q '^face_auth\b'; then
+    echo "Removing the old face_auth SELinux module..."
+    semodule -r face_auth || true
+fi
+
 echo ""
 echo "=== Install complete! ==="
 echo ""
-if [ -n "$(find "$VAR_DIR" -mindepth 2 -name embeddings.bin -print -quit 2>/dev/null)" ]; then
-    echo "NOTE: existing face templates were made by an older pipeline and will be"
-    echo "      refused (password fallback applies) until each user re-enrols."
+# The first 4 bytes of a template are its format version (little-endian u32).
+# Only version 1 (authFace, whole-frame) is refused; say so only if one exists.
+OUTDATED=""
+while IFS= read -r -d '' tpl; do
+    if [ "$(od -An -tu4 -N4 "$tpl" | tr -d ' ')" = "1" ]; then
+        OUTDATED="yes"
+        break
+    fi
+done < <(find "$VAR_DIR" -mindepth 2 -name embeddings.bin -print0 2>/dev/null)
+if [ -n "$OUTDATED" ]; then
+    echo "NOTE: some face templates were made by an older pipeline and will be"
+    echo "      refused (password fallback applies) until those users re-enrol."
     echo ""
 fi
 echo "Enrol your face (enrolment writes a root-owned store, so it needs sudo):"
 echo ""
-echo "  sudo face-enroll --user $ACTUAL_USER"
+echo "  sudo irgate-enroll --user $ACTUAL_USER"
 echo ""
 echo "Then test:"
 echo "  sudo -k && sudo true    # should authenticate via face"

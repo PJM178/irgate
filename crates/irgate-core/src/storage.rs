@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 /// vectors.
 ///
 /// - 1: whole-frame embedding (authFace).
-/// - 2: landmark-aligned 112x112 face crop (irauth).
+/// - 2: landmark-aligned 112x112 face crop (irgate).
 const EMBEDDING_VERSION: u32 = 2;
 const EMBEDDING_DIM: u32 = 512;
 
@@ -164,7 +164,7 @@ mod tests {
 
     fn tmpdir(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
-            "face-auth-test-{}-{}-{:?}",
+            "irgate-test-{}-{}-{:?}",
             tag,
             std::process::id(),
             std::thread::current().id()

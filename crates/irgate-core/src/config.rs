@@ -5,10 +5,10 @@ use serde::Deserialize;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
-pub const SYSTEM_CONFIG_PATH: &str = "/etc/face-auth.toml";
+pub const SYSTEM_CONFIG_PATH: &str = "/etc/irgate.toml";
 
 /// Default embeddings location. Must stay root-owned and 0700 — see deploy.sh.
-pub const DEFAULT_EMBEDDINGS_DIR: &str = "/var/lib/face-auth";
+pub const DEFAULT_EMBEDDINGS_DIR: &str = "/var/lib/irgate";
 
 /// Default cosine-similarity threshold for a match.
 ///
@@ -17,7 +17,7 @@ pub const DEFAULT_EMBEDDINGS_DIR: &str = "/var/lib/face-auth";
 /// and 20° head turns (mean 0.84), and 0.49 for a moving, partly out-of-frame
 /// face. Impostor scores were not measured; ArcFace-family models typically
 /// put a different person well below 0.4. 0.5 leaves pose margin without
-/// approaching that. Raise it in /etc/face-auth.toml to be stricter.
+/// approaching that. Raise it in /etc/irgate.toml to be stricter.
 pub const DEFAULT_THRESHOLD: f32 = 0.5;
 
 // Bounds applied to every config source. A threshold near zero accepts any
@@ -75,10 +75,10 @@ fn read_nofollow(path: &Path) -> std::io::Result<String> {
 
 impl FaceAuthConfig {
     /// Full layered load: system file, then the calling user's file, then
-    /// `FACE_AUTH_*` environment overrides.
+    /// `IRGATE_*` environment overrides.
     ///
     /// Every source here is writable by whoever runs the process, so this is
-    /// for unprivileged tools only, such as `face-enroll`. The
+    /// for unprivileged tools only, such as `irgate-enroll`. The
     /// authentication path must use [`FaceAuthConfig::load_for_auth`].
     pub fn load() -> Result<Self> {
         let mut builder = Config::builder();
@@ -89,14 +89,14 @@ impl FaceAuthConfig {
         }
 
         if let Some(config_dir) = dirs::config_dir() {
-            let user_config = config_dir.join("face-auth.toml");
+            let user_config = config_dir.join("irgate.toml");
             if user_config.exists() {
                 builder = builder.add_source(File::from(user_config));
             }
         }
 
         // try_parsing so numeric keys coerce from their string env values.
-        builder = builder.add_source(Environment::with_prefix("FACE_AUTH").try_parsing(true));
+        builder = builder.add_source(Environment::with_prefix("IRGATE").try_parsing(true));
 
         let config: FaceAuthConfig = builder.build()?.try_deserialize()?;
         config.validate()?;
@@ -112,7 +112,7 @@ impl FaceAuthConfig {
     /// The environment is ignored outright.
     ///
     /// Without this split, anything running as the user (malware that never
-    /// learned their password) could drop a `~/.config/face-auth.toml` with a
+    /// learned their password) could drop a `~/.config/irgate.toml` with a
     /// permissive threshold, or repoint `embeddings_dir` at a directory it
     /// controls, and turn their next `sudo` into root.
     pub fn load_for_auth(username: &str) -> Result<Self> {
@@ -234,7 +234,7 @@ impl FaceAuthConfig {
     pub fn model_path(&self) -> String {
         self.model_path
             .clone()
-            .unwrap_or_else(|| "/usr/local/share/face-auth/w600k_mbf.onnx".to_string())
+            .unwrap_or_else(|| "/usr/local/share/irgate/w600k_mbf.onnx".to_string())
     }
 
     pub fn capture_timeout_ms(&self) -> i32 {
@@ -253,7 +253,7 @@ impl FaceAuthConfig {
     pub fn detector_model_path(&self) -> String {
         self.detector_model_path
             .clone()
-            .unwrap_or_else(|| "/usr/local/share/face-auth/det_500m.onnx".to_string())
+            .unwrap_or_else(|| "/usr/local/share/irgate/det_500m.onnx".to_string())
     }
 
     pub fn detector_threshold(&self) -> f32 {
@@ -279,7 +279,7 @@ impl FaceAuthConfig {
     }
 }
 
-/// Read `~/.config/face-auth.toml` for the account being authenticated.
+/// Read `~/.config/irgate.toml` for the account being authenticated.
 ///
 /// Resolved through NSS rather than `$HOME`, which under `pam_exec` belongs to
 /// whoever invoked the stack rather than to the target user. Any failure is
@@ -289,7 +289,7 @@ fn load_user_overlay(username: &str) -> Option<FaceAuthConfig> {
         .map_err(|e| tracing::debug!("no passwd entry for '{username}': {e}"))
         .ok()?;
 
-    let path = info.home.join(".config/face-auth.toml");
+    let path = info.home.join(".config/irgate.toml");
     let contents = read_nofollow(&path)
         .map_err(|e| tracing::debug!("no readable user config at {}: {e}", path.display()))
         .ok()?;
@@ -319,7 +319,7 @@ mod tests {
             detector_threshold: Some(0.5),
             embeddings_dir: Some(DEFAULT_EMBEDDINGS_DIR.to_string()),
             device: Some("/dev/video3".to_string()),
-            model_path: Some("/usr/local/share/face-auth/w600k_mbf.onnx".to_string()),
+            model_path: Some("/usr/local/share/irgate/w600k_mbf.onnx".to_string()),
             ..FaceAuthConfig::default()
         }
     }
@@ -426,8 +426,8 @@ mod tests {
 
     #[test]
     fn empty_config_deserialises_to_all_defaults() {
-        // load_for_auth builds from zero sources when /etc/face-auth.toml is
-        // absent. If that errored, face-auth would refuse to start on a system
+        // load_for_auth builds from zero sources when /etc/irgate.toml is
+        // absent. If that errored, irgate would refuse to start on a system
         // with no system config rather than falling back to defaults.
         let cfg: FaceAuthConfig = Config::builder().build().unwrap().try_deserialize().unwrap();
         assert!(cfg.validate().is_ok());

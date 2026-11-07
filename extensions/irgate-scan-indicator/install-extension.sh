@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# Install the authFace scan indicator GNOME Shell extension into ~/.local
+# Install the irgate scan indicator GNOME Shell extension into ~/.local
 # (works on immutable distros — no /usr modification needed).
 #
 set -euo pipefail
 
-UUID="authface-scan-indicator@samvivan.local"
+UUID="irgate-scan-indicator@pjm178.github.io"
 SRC="$(cd "$(dirname "$0")" && pwd)"
 EXT_DIR="${XDG_DATA_HOME:-$HOME/.local}/share/gnome-shell/extensions"
 DEST="$EXT_DIR/$UUID"

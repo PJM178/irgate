@@ -7,8 +7,8 @@
 //! costs, which is the gap between the last frame before it and the first after.
 //!
 //!   cargo run --release --example darkstream -- [SECONDS]
-use face_auth_core::capture::Camera;
-use face_auth_core::FaceAuthConfig;
+use irgate_core::capture::Camera;
+use irgate_core::FaceAuthConfig;
 use std::time::{Duration, Instant};
 
 /// Lit strobe frames average 30–100 of 255 on the reference sensor, unlit 0–8.

@@ -1,8 +1,35 @@
 # Changelog
 
-## irauth
+## irgate (formerly irauth)
 
 Changes since the fork from authFace at `96a2fda`.
+
+### Renamed
+
+- **The project is now irgate.** "irauth" was already in use by an unrelated
+  Linux IR face-authentication project. Everything that carried the old
+  `face-auth` name follows:
+
+  | Before | Now |
+  |--------|-----|
+  | `face-auth`, `face-enroll` | `irgate`, `irgate-enroll` |
+  | `face-auth-core` crate | `irgate-core` |
+  | `/etc/face-auth.toml`, `~/.config/face-auth.toml` | `/etc/irgate.toml`, `~/.config/irgate.toml` |
+  | `/var/lib/face-auth`, `/usr/local/share/face-auth` | `/var/lib/irgate`, `/usr/local/share/irgate` |
+  | `FACE_AUTH_*` environment variables | `IRGATE_*` |
+  | journal tag `face-auth` | `irgate` |
+  | SELinux module `face_auth` | `irgate` |
+  | `/run/user/<uid>/face-auth-status` | `/run/user/<uid>/irgate-status` |
+  | `authface-scan-indicator@samvivan.local` | `irgate-scan-indicator@pjm178.github.io` |
+
+  `deploy.sh` migrates an existing install: it moves the config (rewriting the
+  model and template paths in it) and the template store, so nobody has to
+  re-enrol, then removes the old binaries, models, PAM lines and SELinux
+  module. `uninstall.sh` removes both old and new names.
+- `deploy.sh` only warns about templates that need re-enrolment when one is
+  actually format version 1; it used to warn whenever any template existed.
+- README: the licence section called the InsightFace models MIT, contradicting
+  the Model section. They are non-commercial research only.
 
 ### Added
 

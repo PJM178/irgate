@@ -1,0 +1,9 @@
+{
+  "uuid": "irgate-scan-indicator@pjm178.github.io",
+  "name": "irgate Scan Indicator",
+  "description": "Shows irgate face-scan status (scanning / recognised / not recognised) on the GNOME lock screen.",
+  "shell-version": ["45", "46", "47", "48", "49"],
+  "session-modes": ["user", "unlock-dialog"],
+  "url": "https://github.com/PJM178/irgate",
+  "version-name": "1.1.0"
+}

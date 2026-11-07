@@ -1,12 +1,12 @@
 use clap::Parser;
-use face_auth_core::{
+use irgate_core::{
     user, EnrollProgress, FaceAuth, FaceAuthConfig, ENROLL_DEFAULT_FRAMES, ENROLL_DEFAULT_INTERVAL_MS,
 };
 use tracing_subscriber::{fmt, EnvFilter};
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "face-enroll",
+    name = "irgate-enroll",
     about = "Enrol a face for IR authentication",
     after_help = "Templates live under a root-owned directory, so this must be run with sudo."
 )]
@@ -43,9 +43,9 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let filter = if args.verbose {
-        EnvFilter::new("face_auth_core=debug,face_enroll=debug")
+        EnvFilter::new("irgate_core=debug,irgate_enroll=debug")
     } else {
-        EnvFilter::new("face_auth_core=warn,face_enroll=info")
+        EnvFilter::new("irgate_core=warn,irgate_enroll=info")
     };
     fmt().with_env_filter(filter).with_writer(std::io::stderr).init();
 
@@ -66,7 +66,7 @@ fn main() -> anyhow::Result<()> {
     if euid != 0 && args.embeddings_dir.is_none() {
         anyhow::bail!(
             "enrolment writes to a root-owned template store; re-run with:\n\
-             \n    sudo face-enroll --user {}{}\n\
+             \n    sudo irgate-enroll --user {}{}\n\
              \nOr pass --embeddings-dir to write somewhere you own.",
             info.name,
             if args.improve { " --improve" } else { "" }

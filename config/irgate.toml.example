@@ -1,10 +1,10 @@
 # Face Authentication Configuration
 #
-# This file is the SYSTEM configuration: /etc/face-auth.toml
+# This file is the SYSTEM configuration: /etc/irgate.toml
 # It must stay root-owned. It is the only source the PAM authentication path
 # trusts for the camera, the models, and the template directory.
 #
-# Users may also keep ~/.config/face-auth.toml. At the login and sudo prompt
+# Users may also keep ~/.config/irgate.toml. At the login and sudo prompt
 # that file may only ever make authentication STRICTER:
 #
 #   threshold, detector_threshold   honoured only if >= the value set here
@@ -15,7 +15,7 @@
 #   model_path, detector_model_path, embeddings_dir
 #                                   ignored — system policy only
 #
-# FACE_AUTH_* environment variables affect face-enroll and the examples.
+# IRGATE_* environment variables affect irgate-enroll and the examples.
 # They are ignored entirely during PAM authentication.
 
 # IR camera device path.
@@ -34,23 +34,23 @@
 # Templates are landmark-aligned face crops. Measured on the reference IR
 # camera, the enrolled user scores 0.60-0.95 across normal posture, leaning
 # back and 20° head turns; a stranger should fall well below 0.4. Every scan's
-# best score is logged (journalctl -t face-auth), so tune from real numbers.
+# best score is logged (journalctl -t irgate), so tune from real numbers.
 threshold = 0.5
 
-# ONNX model path (default: /usr/local/share/face-auth/w600k_mbf.onnx)
-# model_path = "/usr/local/share/face-auth/w600k_mbf.onnx"
+# ONNX model path (default: /usr/local/share/irgate/w600k_mbf.onnx)
+# model_path = "/usr/local/share/irgate/w600k_mbf.onnx"
 
 # Template storage directory. Must be root-owned and 0700 — anything that can
 # write here can choose whose face unlocks an account.
-# embeddings_dir = "/var/lib/face-auth"
+# embeddings_dir = "/var/lib/irgate"
 
 # Camera capture timeout in milliseconds (100 - 30000, default 5000)
 capture_timeout_ms = 5000
 
-# Face detection ONNX model path (default: /usr/local/share/face-auth/det_500m.onnx).
+# Face detection ONNX model path (default: /usr/local/share/irgate/det_500m.onnx).
 # SCRFD, from the same InsightFace pack as the recogniser; it supplies the five
 # landmarks the face is aligned on before encoding.
-# detector_model_path = "/usr/local/share/face-auth/det_500m.onnx"
+# detector_model_path = "/usr/local/share/irgate/det_500m.onnx"
 
 # Face detection confidence threshold (0.05 - 1.0, higher = stricter)
 detector_threshold = 0.5

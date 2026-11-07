@@ -1,8 +1,8 @@
 //! Diagnostic: capture consecutive frames from the IR camera and report
 //! per-frame statistics, plus PNG dumps, to see what the sensor actually
 //! delivers frame to frame.
-use face_auth_core::capture::Camera;
-use face_auth_core::detector::raw_frame_has_content;
+use irgate_core::capture::Camera;
+use irgate_core::detector::raw_frame_has_content;
 
 fn main() -> anyhow::Result<()> {
     let device = std::env::args().nth(1).unwrap_or_else(|| "/dev/video2".into());

@@ -5,9 +5,9 @@
 //! and prints frame mean, stream restarts, and the detector's best score.
 //!
 //!   cargo run --release --example pacing -- [ATTEMPTS] [INTERVAL_MS...]
-use face_auth_core::capture::Camera;
-use face_auth_core::detector::FaceDetector;
-use face_auth_core::FaceAuthConfig;
+use irgate_core::capture::Camera;
+use irgate_core::detector::FaceDetector;
+use irgate_core::FaceAuthConfig;
 use std::time::Duration;
 
 fn main() -> anyhow::Result<()> {
@@ -31,7 +31,7 @@ fn main() -> anyhow::Result<()> {
             let before = cam.stream_restarts();
             let mut frame = cam.capture_illuminated_frame(config.capture_timeout_ms())?;
             let mean = frame.mean_intensity() / 257.0;
-            face_auth_core::preprocess::histogram_equalize(&mut frame);
+            irgate_core::preprocess::histogram_equalize(&mut frame);
             let score = detector.detect(&frame)?.map_or(0.0, |f| f.score);
             if score >= config.detector_threshold() {
                 passed += 1;

@@ -687,49 +687,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "face-auth"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "face-auth-core",
- "libc",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "face-auth-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "byteorder",
- "config",
- "dirs",
- "image",
- "libc",
- "nix",
- "serde",
- "thiserror 1.0.69",
- "toml",
- "tracing",
- "tracing-subscriber",
- "tract-core",
- "tract-onnx",
-]
-
-[[package]]
-name = "face-enroll"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "face-auth-core",
- "libc",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "fax"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -957,6 +914,49 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6928282826c822ad91bf1c9a1cb90a30ba1c26770749929b4656cd6be829cd7c"
 dependencies = [
  "rustversion",
+]
+
+[[package]]
+name = "irgate"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "irgate-core",
+ "libc",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "irgate-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "config",
+ "dirs",
+ "image",
+ "libc",
+ "nix",
+ "serde",
+ "thiserror 1.0.69",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "tract-core",
+ "tract-onnx",
+]
+
+[[package]]
+name = "irgate-enroll"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "irgate-core",
+ "libc",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

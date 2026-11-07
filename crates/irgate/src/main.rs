@@ -5,7 +5,7 @@
 //! reads from its environment is attacker-influenced except `PAM_USER`, which
 //! `pam_exec` sets from the PAM handle itself.
 
-use face_auth_core::{user, FaceAuth, FaceAuthConfig, ScanOutcome};
+use irgate_core::{user, FaceAuth, FaceAuthConfig, ScanOutcome};
 use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -19,13 +19,13 @@ use tracing_subscriber::{fmt, EnvFilter};
 /// `pam_exec` relays this process's stderr to whatever started the PAM
 /// conversation — the user's terminal under `sudo` — so stderr is kept quiet
 /// by default and is no use for audit anyway. syslog(3) lands in journald on
-/// every systemd distro (`journalctl -t face-auth`) and under `/dev/log`
+/// every systemd distro (`journalctl -t irgate`) and under `/dev/log`
 /// elsewhere, and works from a static musl binary without linking libsystemd.
 /// Facility AUTHPRIV, the same as the rest of the PAM stack.
 mod journal {
     use std::ffi::{CStr, CString};
 
-    const IDENT: &CStr = c"face-auth";
+    const IDENT: &CStr = c"irgate";
 
     pub fn open() {
         // IDENT is 'static: openlog keeps the pointer rather than copying.
@@ -60,12 +60,12 @@ const STATUS_SCANNING: &str = "scanning";
 const STATUS_OK: &str = "ok";
 const STATUS_FAIL: &str = "fail";
 
-/// Publish scan state to `/run/user/<uid>/face-auth-status` for the lock-screen
+/// Publish scan state to `/run/user/<uid>/irgate-status` for the lock-screen
 /// indicator extension.
 ///
 /// This process runs as root while the target directory belongs to the user,
 /// so the write must not follow a symlink: without `O_NOFOLLOW` a user could
-/// point `face-auth-status` at `/etc/shadow` and have root truncate it on
+/// point `irgate-status` at `/etc/shadow` and have root truncate it on
 /// their next unlock attempt. `O_NOFOLLOW` fails rather than following.
 ///
 /// The file stays root-owned; the extension can still unlink it, because
@@ -76,7 +76,7 @@ fn write_status(info: &user::UserInfo, status: &str) {
     if !dir.is_dir() {
         return;
     }
-    let path = dir.join("face-auth-status");
+    let path = dir.join("irgate-status");
 
     let result = OpenOptions::new()
         .write(true)
@@ -181,7 +181,7 @@ fn run_verify(name: &str) -> ! {
 
 fn main() {
     let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("face_auth_core=error,face_auth=error"));
+        .unwrap_or_else(|_| EnvFilter::new("irgate_core=error,irgate=error"));
     fmt()
         .with_env_filter(filter)
         .with_writer(std::io::stderr)
@@ -198,8 +198,8 @@ fn main() {
         match argv.as_slice() {
             [flag, name] if flag == "--verify" => run_verify(name),
             _ => {
-                eprintln!("usage: face-auth            (PAM mode, reads PAM_USER)");
-                eprintln!("       face-auth --verify USER  (test a stored face, requires root)");
+                eprintln!("usage: irgate            (PAM mode, reads PAM_USER)");
+                eprintln!("       irgate --verify USER  (test a stored face, requires root)");
                 std::process::exit(2);
             }
         }

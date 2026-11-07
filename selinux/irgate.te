@@ -1,4 +1,4 @@
-module face_auth 1.0;
+module irgate 1.0;
 
 require {
     type xdm_t;

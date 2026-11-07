@@ -5,9 +5,9 @@
 //!
 //! Prints per frame: mean, quality verdict, and the detector's best face
 //! (score, box size) before and after histogram equalisation.
-use face_auth_core::capture::IrFrame;
-use face_auth_core::detector::{assess_frame, FaceDetector};
-use face_auth_core::FaceAuthConfig;
+use irgate_core::capture::IrFrame;
+use irgate_core::detector::{assess_frame, FaceDetector};
+use irgate_core::FaceAuthConfig;
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
@@ -29,13 +29,13 @@ fn main() -> anyhow::Result<()> {
         };
         let mean = chunk.iter().map(|&b| b as f64).sum::<f64>() / chunk.len() as f64;
         let quality = assess_frame(&frame);
-        let describe = |f: Option<face_auth_core::detector::Face>| match f {
+        let describe = |f: Option<irgate_core::detector::Face>| match f {
             Some(f) => format!("score {:.2} box {:.0}x{:.0}", f.score, f.width(), f.height()),
             None => "none".into(),
         };
         let plain = describe(detector.detect(&frame)?);
         let mut eq = frame;
-        face_auth_core::preprocess::histogram_equalize(&mut eq);
+        irgate_core::preprocess::histogram_equalize(&mut eq);
         let equalised = describe(detector.detect(&eq)?);
         println!("{i:3} mean {mean:5.1} {quality:<12} raw: {plain:<26} equalised: {equalised}");
     }

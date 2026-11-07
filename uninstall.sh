@@ -20,13 +20,13 @@ fi
 
 # ---- Check if /usr is writable (immutable FS detection) ----
 USR_WRITABLE=false
-if touch /usr/share/.face-auth-write-test 2>/dev/null; then
-    rm -f /usr/share/.face-auth-write-test
+if touch /usr/share/.irgate-write-test 2>/dev/null; then
+    rm -f /usr/share/.irgate-write-test
     USR_WRITABLE=true
 fi
 
 BIN_DIR="/usr/local/bin"
-SHARE_DIR="/usr/local/share/face-auth"
+SHARE_DIR="/usr/local/share/irgate"
 CONFIG_DIR="/etc"
 PAM_DIR="/etc/pam.d"
 
@@ -41,20 +41,22 @@ else
 fi
 
 echo "Removing binaries..."
-rm -f "$BIN_DIR/face-auth"
-rm -f "$BIN_DIR/face-enroll"
+rm -f "$BIN_DIR/irgate"
+rm -f "$BIN_DIR/irgate-enroll"
 
 echo "Removing model and SELinux policy..."
 rm -rf "$SHARE_DIR"
 
 echo "Removing config..."
-rm -f "$CONFIG_DIR/face-auth.toml"
+rm -f "$CONFIG_DIR/irgate.toml"
 
-# The settings GUI was removed from irauth. Clean up what an earlier
-# deploy-gui.sh may have installed.
-echo "Removing leftovers of the old settings GUI..."
-rm -f "$BIN_DIR/face-auth-gtk"
+# Leftovers from before the rename (face-auth) and from the old settings
+# GUI, which only ever existed under the old name.
+echo "Removing leftovers of the pre-rename install and the old settings GUI..."
+rm -f "$BIN_DIR/face-auth" "$BIN_DIR/face-enroll" "$BIN_DIR/face-auth-gtk"
 rm -f "${XDG_BIN_HOME:-$ACTUAL_HOME/.local/bin}/face-auth-gtk"
+rm -rf /usr/local/share/face-auth
+rm -f "$CONFIG_DIR/face-auth.toml"
 rm -f "$APP_DIR/com.github.pfalkingham.face-auth-gtk.desktop"
 rm -f "${XDG_DATA_HOME:-$ACTUAL_HOME/.local/share}/applications/com.github.pfalkingham.face-auth-gtk.desktop"
 rm -f "$ICON_DIR/com.github.pfalkingham.face-auth-gtk.svg"
@@ -65,28 +67,32 @@ rm -rf "${XDG_DATA_HOME:-$ACTUAL_HOME/.local/share}/face-auth-gtk"
 echo "Restoring PAM configs..."
 for service in sudo swaylock gdm-password; do
     conf="$PAM_DIR/$service"
-    if [ -f "$conf.face-auth.bak" ]; then
-        mv "$conf.face-auth.bak" "$conf"
+    if [ -f "$conf.irgate.bak" ]; then
+        mv "$conf.irgate.bak" "$conf"
         echo "Restored $conf from backup"
+    elif [ -f "$conf.face-auth.bak" ]; then
+        mv "$conf.face-auth.bak" "$conf"
+        echo "Restored $conf from pre-rename backup"
     else
-        # Anchored to our own stanza: a bare /face-auth/d would delete any
+        # Anchored to our own stanza: a bare /irgate/d would delete any
         # unrelated line that happens to mention it.
-        sed -i '/pam_exec\.so.*face-auth/d' "$conf" 2>/dev/null || true
+        sed -i '/pam_exec\.so.*\(irgate\|face-auth\)/d' "$conf" 2>/dev/null || true
         echo "Cleaned $conf"
     fi
 done
 
 echo "Removing SELinux policy module..."
+semodule -r irgate 2>/dev/null || true
 semodule -r face_auth 2>/dev/null || true
 
 echo ""
 if [ "$PURGE" = true ]; then
     echo "Removing user embeddings..."
-    rm -rf /var/lib/face-auth/
+    rm -rf /var/lib/irgate/ /var/lib/face-auth/
     echo "Uninstall complete (including user embeddings)."
 else
     echo "Uninstall complete!"
-    echo "Note: User embeddings in /var/lib/face-auth/ were preserved."
-    echo "Remove them manually with: sudo rm -rf /var/lib/face-auth/"
+    echo "Note: User embeddings in /var/lib/irgate/ were preserved."
+    echo "Remove them manually with: sudo rm -rf /var/lib/irgate/"
     echo "Or run again with --purge to remove them automatically."
 fi

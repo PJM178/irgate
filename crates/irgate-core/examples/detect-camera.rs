@@ -2,7 +2,7 @@
 //! camera, and which one authentication would actually use.
 fn main() {
     println!("Scanning /sys/class/video4linux ...\n");
-    for node in face_auth_core::capture::list_video_nodes() {
+    for node in irgate_core::capture::list_video_nodes() {
         println!("{:<14} name={:?}", node.path, node.name);
         println!("  {:<24} {}", "name looks like IR:", node.ir_name);
         match &node.grey_capture {
@@ -14,6 +14,6 @@ fn main() {
         }
         println!();
     }
-    println!("enumerate_ir_cameras() -> {:?}", face_auth_core::capture::enumerate_ir_cameras());
-    println!("detect_ir_camera()     -> {:?}", face_auth_core::capture::detect_ir_camera());
+    println!("enumerate_ir_cameras() -> {:?}", irgate_core::capture::enumerate_ir_cameras());
+    println!("detect_ir_camera()     -> {:?}", irgate_core::capture::detect_ir_camera());
 }

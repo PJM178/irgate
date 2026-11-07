@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 
 /// Progress reporting for the interactive enrolment paths.
 ///
-/// The library never writes to stdout itself — `face-auth` runs under
+/// The library never writes to stdout itself — `irgate` runs under
 /// `pam_exec`, where stray output lands on the user's terminal on every
 /// `sudo`. Callers that *are* interactive supply a sink.
 pub type ProgressFn<'a> = &'a mut dyn FnMut(EnrollProgress);
@@ -133,8 +133,8 @@ impl FaceAuth {
         Ok(Some((face, embedding)))
     }
 
-    /// Single-shot verification from one frame. Nothing in irauth calls this
-    /// now; the PAM path and `face-auth --verify` use
+    /// Single-shot verification from one frame. Nothing in irgate calls this
+    /// now; the PAM path and `irgate --verify` use
     /// [`FaceAuth::authenticate_scan`].
     pub fn authenticate_once(&mut self, user: &str) -> Result<bool> {
         let t0 = Instant::now();
