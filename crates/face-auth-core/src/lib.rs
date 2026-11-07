@@ -191,10 +191,12 @@ impl FaceAuth {
         let mut last_reject: Option<FrameQuality> = None;
 
         // Wait out the remainder of the interval without overrunning the window.
-        let nap = |deadline: Instant| {
+        // The stream is paused while sleeping: see `Camera::pause`.
+        let nap = |cam: &mut Camera, deadline: Instant| {
             let sleep =
                 Duration::from_millis(interval_ms).min(deadline.saturating_duration_since(Instant::now()));
             if !sleep.is_zero() {
+                cam.pause();
                 std::thread::sleep(sleep);
             }
         };
@@ -233,7 +235,7 @@ impl FaceAuth {
                     if consecutive_errors >= 3 {
                         return Err(e);
                     }
-                    nap(deadline);
+                    nap(&mut cam, deadline);
                     continue;
                 }
             };
@@ -242,7 +244,7 @@ impl FaceAuth {
             if quality != FrameQuality::Ok {
                 tracing::trace!(frame = frame_num, %quality, "frame rejected");
                 last_reject = Some(quality);
-                nap(deadline);
+                nap(&mut cam, deadline);
                 continue;
             }
 
@@ -250,10 +252,11 @@ impl FaceAuth {
             crate::preprocess::histogram_equalize(&mut frame);
 
             let Some((face, embedding)) = self.encode_face(&frame)? else {
-                nap(deadline);
+                nap(&mut cam, deadline);
                 continue;
             };
             faces += 1;
+            cam.meter_on_face(face.bbox);
             tracing::trace!(
                 frame = frame_num,
                 score = face.score,
@@ -280,7 +283,7 @@ impl FaceAuth {
                 });
             }
 
-            nap(deadline);
+            nap(&mut cam, deadline);
         }
     }
 
@@ -308,18 +311,20 @@ impl FaceAuth {
             if quality != FrameQuality::Ok {
                 last_reject = Some(quality);
                 progress(EnrollProgress::NoContent);
-                std::thread::sleep(Duration::from_millis(interval_ms));
+                pause_for(cam, interval_ms);
                 continue;
             }
 
             let mut frame = frame;
             crate::preprocess::histogram_equalize(&mut frame);
 
-            let Some((_, embedding)) = self.encode_face(&frame)? else {
+            let Some((face, embedding)) = self.encode_face(&frame)? else {
                 progress(EnrollProgress::NoFace);
-                std::thread::sleep(Duration::from_millis(interval_ms));
+                pause_for(cam, interval_ms);
                 continue;
             };
+
+            cam.meter_on_face(face.bbox);
 
             // Only frames from *this* run count as duplicates: --improve is
             // meant to add poses the existing templates lack, and a frame that
@@ -330,7 +335,7 @@ impl FaceAuth {
             });
             if duplicate {
                 progress(EnrollProgress::TooSimilar);
-                std::thread::sleep(Duration::from_millis(interval_ms));
+                pause_for(cam, interval_ms);
                 continue;
             }
 
@@ -339,7 +344,7 @@ impl FaceAuth {
             progress(EnrollProgress::Captured { captured, wanted: frames });
 
             if captured < frames {
-                std::thread::sleep(Duration::from_millis(interval_ms));
+                pause_for(cam, interval_ms);
             }
         }
 
@@ -409,6 +414,15 @@ impl FaceAuth {
         let total = store.embeddings.len();
         store.save(user, &self.config.embeddings_dir())?;
         Ok((total - existing, total))
+    }
+}
+
+
+/// Sleep between enrollment captures with the stream paused (see `Camera::pause`).
+fn pause_for(cam: &mut Camera, interval_ms: u64) {
+    if interval_ms > 0 {
+        cam.pause();
+        std::thread::sleep(Duration::from_millis(interval_ms));
     }
 }
 

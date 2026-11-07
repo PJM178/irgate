@@ -57,6 +57,28 @@ Changes since the fork from authFace at `96a2fda`.
 
 ### Fixed
 
+- **Face unlock now works in a dark room.** In darkness (no ambient IR, so
+  the unlit strobe frame is fully black) the reference ASUS sensor
+  (3277:0060) streams about 12 good frames and then replaces every frame with
+  a solid fill of 144. That's firmware behaviour: Windows' inbox driver sends
+  nothing that prevents it, and Windows Hello fails in the dark on the same
+  hardware (checked in a Windows 11 VM with the camera passed through and the
+  USB traffic recorded). Three changes make the dark usable:
+  - `Camera::capture_frame` detects a flat-fill frame and restarts the stream,
+    which gives another ~0.8 s of real frames (restart cost about 250 ms).
+  - Auto-exposure is metered on the face through the standard UVC 1.5 region
+    of interest control, as Windows Hello does: the frame centre at first,
+    then each detected face's box. Metered on the whole dark room, the sensor
+    blew the face out (lit-frame means 100-230, detector scores under 0.4);
+    on the face it holds about 35-55 from the first frame.
+  - Enrollment (and a non-zero `scan_interval_ms`) pauses the stream while
+    sleeping. A stream left running but unread blanks and lets exposure drift
+    to maximum before the next capture.
+
+  Measured in the dark: enrollment 8/8 templates with no rejected attempts
+  (it saved 1-4 before), and a 10 s check matched 61/61 frames (similarity
+  mean 0.88, min 0.67). New diagnostics: `darkstream`, `pacing`, `detectraw`.
+
 - **Camera auto-detection found nothing on the reference laptop and fell
   back to the RGB webcam.** It required the sysfs card name to contain the
   word "IR", but the kernel truncates card names to 31 characters and the
