@@ -33,8 +33,10 @@
 #
 # Templates are landmark-aligned face crops. Measured on the reference IR
 # camera, the enrolled user scores 0.60-0.95 across normal posture, leaning
-# back and 20° head turns; a stranger should fall well below 0.4. Every scan's
-# best score is logged (journalctl -t irgate), so tune from real numbers.
+# back and 20° head turns. One impostor test (a different person, normal light,
+# 36 frames with a face) peaked at 0.449: rejected, but only 0.05 under 0.5.
+# Consider 0.55 if your own unlocks stay above ~0.65. Every scan's best score is
+# logged (journalctl -t irgate), so tune from real numbers.
 threshold = 0.5
 
 # ONNX model path (default: /usr/local/share/irgate/w600k_mbf.onnx)

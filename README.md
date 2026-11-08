@@ -410,6 +410,13 @@ onto the ArcFace landmark layout, and encodes only that. With nobody in view the
 no landmarks and nothing is scored; with the enrolled user it scores 0.60–0.95 across
 posture changes (mean 0.84) where the old pipeline gave 0.66–0.81.
 
+A different person was tested once, in normal light and in the enrolled user's seat:
+the best of 36 frames with a face scored **0.449**, so the 0.5 threshold rejected them.
+That margin is narrow, and one person over one attempt is not a broad sample. If your
+own unlocks score comfortably above 0.65 (check `journalctl -t irgate`), raising
+`threshold` to **0.55** roughly splits the gap between this impostor score and the
+lowest same-user score (0.60).
+
 **Templates made by authFace are refused** (format version 1; irgate writes version 2)
 with a message telling the user to re-enrol. Password fallback applies until they do.
 

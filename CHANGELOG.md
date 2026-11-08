@@ -70,9 +70,10 @@ Changes since the fork from authFace at `96a2fda`.
 
 - **Default threshold is 0.5** for new installs (an existing
   `/etc/face-auth.toml` is kept). Measured same-user scores span 0.60-0.95
-  across poses; a moving, partly out-of-frame face scored 0.49. Impostor
-  scores were not measured and should be checked with a second person before
-  lowering it further.
+  across poses; a moving, partly out-of-frame face scored 0.49. One impostor
+  test (a different person, normal light, 36 frames with a face) peaked at
+  0.449 and was rejected. The margin is about 0.05 either side, so 0.55 may be
+  the better default; it is left at 0.5 until more impostor data exists.
 - **Enrolment captures 8 frames, 500 ms apart, and skips near-duplicates**
   (similarity >= 0.97 to a frame already captured in the same run), so the
   user is nudged to move their head and the templates cover the poses the
