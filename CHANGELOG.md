@@ -1,6 +1,6 @@
 # Changelog
 
-## irgate (formerly irauth)
+## 0.1.0 — 2026-11-08 (irgate, formerly irauth)
 
 Changes since the fork from authFace at `96a2fda`.
 
