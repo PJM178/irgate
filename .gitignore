@@ -24,3 +24,6 @@ models/
 *.swo
 *~
 .bash_history
+
+# Release tarballs (scripts/release.sh)
+dist/

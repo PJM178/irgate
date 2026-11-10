@@ -1,7 +1,11 @@
 [package]
 name = "irgate-enroll"
-version = "0.1.0"
-edition = "2021"
+description = "Enrolment CLI for irgate face templates"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
 
 [dependencies]
 irgate-core = { path = "../irgate-core" }

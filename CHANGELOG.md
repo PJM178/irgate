@@ -33,6 +33,11 @@ Changes since the fork from authFace at `96a2fda`.
 
 ### Added
 
+- **`scripts/release.sh`** builds the release tarball. It remaps build paths
+  so the binaries do not embed the builder's home directory, and refuses to
+  package them if any remains.
+- Crate metadata: licence, repository and description, and `publish = false`,
+  since the crates are no use without the separately licensed models.
 - **Scan outcomes are recorded in the system journal.** Every run of
   `face-auth` now logs one line via syslog(3) under the `face-auth` identifier
   (facility AUTHPRIV): match or no match, the best similarity seen against the

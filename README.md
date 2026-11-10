@@ -159,6 +159,15 @@ sudo ./deploy.sh
 > for the invoking user and runs the build as that user rather than as root, so
 > `sudo ./deploy.sh` works and does not leave root-owned files in `target/`.
 
+### Release tarballs
+
+`scripts/release.sh` builds what is attached to a GitHub release: the source
+from `git archive HEAD` plus static binaries in
+`target/x86_64-unknown-linux-musl/release/`, so `deploy.sh` installs it without
+a toolchain. It remaps build paths so the binaries do not embed the builder's
+home directory, and refuses to package them if any trace remains. Output goes
+to `dist/` with a `SHA256SUMS` file.
+
 ## Deployment
 
 ```bash
@@ -598,6 +607,8 @@ irgate/
       extension.js
       metadata.json
       install-extension.sh
+  scripts/
+    release.sh               # Build the release tarball into dist/
   deploy.sh                  # Core auth installer
   uninstall.sh               # Removal script (--purge also deletes templates)
 ```

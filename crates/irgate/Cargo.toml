@@ -1,7 +1,11 @@
 [package]
 name = "irgate"
-version = "0.1.0"
-edition = "2021"
+description = "PAM helper that unlocks a session by IR camera face match"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
 
 [dependencies]
 irgate-core = { path = "../irgate-core" }

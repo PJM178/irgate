@@ -6,6 +6,15 @@ members = [
 ]
 resolver = "2"
 
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/PJM178/irgate"
+# Not for crates.io: the binaries are useless without the separately
+# licensed InsightFace models that deploy.sh installs.
+publish = false
+
 [workspace.dependencies]
 tract-onnx = "0.23"
 image = "0.25.4"
